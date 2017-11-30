@@ -1,0 +1,13 @@
+build
+dist
+videos
+*.egg-info
+*.pyc
+*.pkl
+*.log
+*.bak
+*.mp4
+*.png
+*.bmp
+.DS_Store
+.idea
