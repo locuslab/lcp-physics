@@ -1,0 +1,19 @@
+language: python
+python:
+  - "3.5"
+install:
+  - pip install pygame
+  # Install pytorch
+  - pip install http://download.pytorch.org/whl/cu80/torch-0.3.0.post4-cp35-cp35m-linux_x86_64.whl > /dev/null
+  # Install scipy
+  - pip install scipy
+  - pip install . 
+script: pytest -v
+# deploy:
+#   provider: pypi
+#   user: filipeabperes
+#   password:
+#     secure: "XjUKqdcHChtNonB0GHL7EZvroFY8XRt6B4nBek00iYMN4hdVTihEzL+LD5x692a6Q19fOlwvS8DMFru4AggFs3Qplj9Wh/TgeGh8eQoSl4py9wuoLTp8hFaM/jV52Llw1/kNX3d5JuwHVt8+gJgLmBgCcT2dVcLzbR+tyKBk/7TitWIczhu2gtWMTGe2CywaDOU6BOn24XgWz7hKFnQCmzfyF6ZTU3PO2fF7lR3w6cXRcf4TEdmyUFfb/Oj/gxPZHj2b66HPwHk2ZihVvzoZPur95NClbBe/NGjcipiFlBlZ99ar37enMRV3+uEYzUk0RSfX+CvcEQEufSjcJyHLRRAF6QDL0UHzF8l/YOexiGMy9EM3ISKjrGDZsiY30VzGrO2SJV+7glx0Ti4R/6qQYzBfy4egyhrhuEQEwwRHR7CJzuSZUP8KIanDWk3pot6BUkK/vn2l+MSaxNWfTPlOOSXvDcn2HaMjZDMJ7lNS5JXMN4FnihO6u5cenDHETZE99htSCirGupoFkl+eCil1X8uGgB0J9WgHUsTHndauu7OJLQKsed6XoEefxydjHCI4HeiVgnQgv4J6HrO011rjmQViYWU+KfvAl22uuAAkUNXhZPAdltJ5YROaount5SFZnNbETgvYz93vZKM2VpwBQnpWrCVqjLJq6QUZdeRO52U="
+#   on:
+#     distributions: sdist
+#     repo: locuslab/lcp-physics
