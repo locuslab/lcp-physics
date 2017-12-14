@@ -10,6 +10,7 @@ import lcp_physics.physics.engines as engines_module
 import lcp_physics.physics.collisions as collisions_module
 from .utils import Indices, Params, cross_2d, get_instance
 
+
 X, Y = Indices.X, Indices.Y
 DIM = Params.DIM
 
@@ -93,10 +94,7 @@ class World:
                     j[0].rot1 = c[0].clone()
                     j[0].rot2 = c[1].clone() if j[0].rot2 is not None else None
                     j[0].update_pos()
-                if dt > self.dt / 4:  # XXX
-                    self.collisions = start_collisions
-                # else:
-                #     print('\nSolving stuck collision.')
+                self.collisions = start_collisions
         self.t += dt
 
     def set_v(self, new_v):
@@ -271,7 +269,6 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
             elapsed_time = time.time() - start_time
             print('\r ', '{} / {}  {}'.format(int(world.t), int(elapsed_time),
                                               1 / animation_dt), end='')
-
             if not recorder:
                 # Adjust frame rate dynamically to keep real time
                 wait_time = world.t - elapsed_time

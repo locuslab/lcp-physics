@@ -10,7 +10,7 @@ from lcp_physics.physics.utils import Params
 from lcp_physics.physics.world import World, run_world
 
 
-TIME = 40
+TIME = 20
 DT = Params.DEFAULT_DT
 
 
@@ -109,14 +109,14 @@ def slide_demo(screen):
     # joints.append(Joint(r, None, [110, 200]))
     # joints.append(Joint(r, None, [80, 500]))
 
-    r = Rect([100, 100], [1000, 20])
+    # r = Circle([100, 100], 30)
     r = Rect([100, 100], [60, 60])
-    r.v[0] = -math.pi / 8 * 0
-    r.move(1)
-    r.v[0] = 0.
+    # r.v[0] = -math.pi / 8
+    # r.move(1)
+    # r.v[0] = 0.
     bodies.append(r)
     r.add_force(ExternalForce(gravity, multiplier=100))
-    # r.add_force(ExternalForce(hor_impulse, multiplier=-100))
+    # r.add_force(ExternalForce(vert_impulse, multiplier=1000))
 
     # c = Circle([100, 150], 30)
     # bodies.append(c)
@@ -138,6 +138,7 @@ def slide_demo(screen):
 
 
 def fric_demo(screen):
+    restitution = 0.75
     bodies = []
     joints = []
 
@@ -147,19 +148,19 @@ def fric_demo(screen):
         else:
             return ExternalForce.ZEROS
 
-    r = Rect([400, 400], [900, 10])
+    r = Rect([400, 400], [900, 10], restitution=restitution)
     bodies.append(r)
     r.add_force(ExternalForce(timed_force, multiplier=100))
     r.add_force(ExternalForce(gravity, multiplier=100))
 
-    c = Circle([200, 364], 30)
+    c = Circle([200, 364], 30, restitution=restitution)
     bodies.append(c)
     c.add_force(ExternalForce(gravity, multiplier=100))
 
-    c = Circle([50, 436], 30)
+    c = Circle([50, 436], 30, restitution=restitution)
     bodies.append(c)
     joints.append(Joint(c, None, [50, 436]))
-    c = Circle([800, 436], 30)
+    c = Circle([800, 436], 30, restitution=restitution)
     bodies.append(c)
     joints.append(Joint(c, None, [800, 436]))
 

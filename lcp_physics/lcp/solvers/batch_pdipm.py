@@ -30,7 +30,7 @@ to get a version that disables pivoting on the GPU.
 
 INACC_ERR = """
 --------
-lcp warning: Returning an inaccurate and potentially incorrect solutino.
+lcp warning: Returning an inaccurate and potentially incorrect solution.
 
 Some residual is large.
 Your problem may be infeasible or difficult.
@@ -57,7 +57,7 @@ class KKTSolvers(Enum):
 
 
 def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
-            eps=1e-12, verbose=0, notImprovedLim=3,
+            eps=1e-12, verbose=-1, notImprovedLim=3,
             maxIter=20, solver=KKTSolvers.LU_PARTIAL):
     """
     Q_LU, S_LU, R = pre_factor_kkt(Q, G, A)

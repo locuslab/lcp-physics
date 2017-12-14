@@ -9,5 +9,6 @@ videos
 *.mp4
 *.png
 *.bmp
+*.lprof
 .DS_Store
 .idea

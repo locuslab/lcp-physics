@@ -17,9 +17,9 @@ class Params:
     DEFAULT_PAR_EPS = DEFAULT_EPSILON
 
     # Default simulation parameters
-    DEFAULT_RESTITUTION = 0.25
+    DEFAULT_RESTITUTION = 0.3
 
-    DEFAULT_FRIC_COEFF = 0.9
+    DEFAULT_FRIC_COEFF = 0.23
     DEFAULT_FRIC_DIRS = 2
 
     DEFAULT_FPS = 30

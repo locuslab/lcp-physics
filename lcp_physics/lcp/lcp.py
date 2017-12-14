@@ -13,8 +13,8 @@ class LCPSolvers(Enum):
 
 class LCPFunction(Function):
 
-    def __init__(self, eps=1e-12, verbose=0, notImprovedLim=3,
-                 maxIter=20, solver=LCPSolvers.PDIPM_BATCHED):
+    def __init__(self, eps=1e-12, verbose=-1, notImprovedLim=3,
+                 maxIter=10, solver=LCPSolvers.PDIPM_BATCHED):
         super().__init__()
         self.eps = eps
         self.verbose = verbose
@@ -43,7 +43,7 @@ class LCPFunction(Function):
 
         if self.solver == LCPSolvers.PDIPM_BATCHED:
             Q_LU = S_LU = R = None
-            # Q_LU, S_LU, R = pre_factor_kkt(Q, G, F, A)
+            # Q_LU, S_LU, R = pdipm_b.pre_factor_kkt(Q, G, F, A)
             zhats, self.nus, self.lams, self.slacks = pdipm_b.forward(
                 Q, p, G, h, A, b, F, Q_LU, S_LU, R,
                 self.eps, self.verbose, self.notImprovedLim,

@@ -76,7 +76,6 @@ class TestDemos(unittest.TestCase):
         world = World(bodies, joints, dt=DT)
         run_world(world, run_time=10, screen=self.screen)
 
-
     def testChain(self):
         bodies = []
         joints = []
@@ -101,7 +100,6 @@ class TestDemos(unittest.TestCase):
         # recorder = Recorder(DT, self.screen)
         world = World(bodies, joints, dt=DT)
         run_world(world, run_time=TIME, screen=self.screen, recorder=recorder)
-
 
     def testSlide(self):
         bodies = []
@@ -145,7 +143,6 @@ class TestDemos(unittest.TestCase):
         # recorder = Recorder(DT, self.screen)
         world = World(bodies, joints, dt=DT)
         run_world(world, run_time=TIME, screen=self.screen, recorder=recorder)
-
 
     def testFric(self):
         bodies = []

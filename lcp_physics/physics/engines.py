@@ -57,7 +57,7 @@ class PdipmEngine(Engine):
             # Solve Mixed LCP (Kline 2.7.2)
             # TODO Organize
             Jc = world.Jc()
-            v = -torch.matmul(Jc, world.v * -world.restitutions)
+            v = torch.matmul(Jc, world.v * world.restitutions / 2)  # XXX why is 1/2 correction needed?
             TM = world.M.unsqueeze(0)
             if neq > 0:
                 TJe = Je.unsqueeze(0)
@@ -88,7 +88,10 @@ class PdipmEngine(Engine):
             h = torch.cat([Tv,
                            Variable(Tensor(Tv.size(0), TJf.size(1) + Tmu.size(1))
                                     .zero_())], 1)
-            x = -self.lcp_solver()(TM, Tu, G, h, TJe, b, F)
+            # adjust precision depending on difficulty of step, with maxIter in [3, 20]
+            # measured by number of iterations performed on current step (world.dt / dt)
+            max_iter = max(int(20 / (world.dt / dt)), 3)
+            x = -self.lcp_solver(maxIter=max_iter)(TM, Tu, G, h, TJe, b, F)
 
         new_v = x[:world.vec_len * len(world.bodies)].squeeze(0)
 
