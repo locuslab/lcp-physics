@@ -90,7 +90,7 @@ def chain_demo(screen):
     recorder = None
     # recorder = Recorder(DT, screen)
     world = World(bodies, joints, dt=DT)
-    run_world(world, run_time=TIME, screen=screen, recorder=recorder)
+    run_world(world, run_time=TIME * 2, screen=screen, recorder=recorder)
 
 
 def slide_demo(screen):

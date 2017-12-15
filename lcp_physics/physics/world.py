@@ -61,14 +61,16 @@ class World:
 
         self.restitutions = Variable(Tensor(len(self.v)))
         for i in range(len(bodies)):
+            # XXX why is 1/2 correction needed?
             self.restitutions[i * self.vec_len:(i + 1) * self.vec_len] = \
-                bodies[i].restitution.repeat(3)
+                bodies[i].restitution.repeat(3) / 2
 
         self.collisions = None
         self.find_collisions()
 
     def step(self):
         dt = self.dt
+        start_v = self.v
         start_p = torch.cat([b.p for b in self.bodies])
         start_rot_joints = [(j[0].rot1, j[0].rot2) for j in self.joints]
         start_collisions = self.collisions
@@ -87,7 +89,8 @@ class World:
                 break
             else:
                 dt /= 2
-                # reset positions to beginning of step
+                # reset state to beginning of step
+                self.set_v(start_v)
                 self.set_p(start_p.clone())  # XXX Avoid clone?
                 for j, c in zip(self.joints, start_rot_joints):
                     # XXX Clone necessary?
@@ -174,6 +177,7 @@ class World:
 
     @lru_cache()
     def _memoized_mu(self, *collisions):
+        # collisions is argument so that lru_cache works
         mu = Variable(torch.zeros(len(self.collisions)))
         for i, collision in enumerate(self.collisions):
             i1 = collision[1]
@@ -218,6 +222,8 @@ class World:
 
 def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
               screen=None, recorder=None):
+    """Helper function to run a simulation forward once a world is created.
+    """
     if screen is not None:
         background = pygame.Surface(screen.get_size())
         background = background.convert()
