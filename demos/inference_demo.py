@@ -32,7 +32,7 @@ def inference_demo(screen):
     learning_rate = 0.01
     max_iter = 100
 
-    next_mass = Variable(torch.DoubleTensor([1]), requires_grad=True)
+    next_mass = Variable(torch.DoubleTensor([1.3]), requires_grad=True)
     loss_hist = []
     mass_hist = [next_mass]
     last_dist = 1e10
@@ -43,6 +43,7 @@ def inference_demo(screen):
         positions = positions_run_world(world, run_time=10, screen=None)
         positions = torch.cat(positions)
         positions = positions[:len(ground_truth_pos)]
+        # temp_ground_truth_pos = ground_truth_pos[:len(positions)]
 
         loss = MSELoss()(positions, ground_truth_pos)
         loss.backward()
@@ -73,13 +74,8 @@ def inference_demo(screen):
     print(loss.data[0])
     print(next_mass)
 
-    import pickle
-    with open('chain_inference_loss_hist.pkl', 'w') as f:
-        pickle.dump(loss_hist, f)
-    with open('chain_inference_mass_hist.pkl', 'w') as f:
-        pickle.dump(mass_hist, f)
     plot(loss_hist)
-
+    plot(mass_hist)
 
 
 # # One ball
@@ -160,7 +156,10 @@ def make_world(forces, mass):
     bodies.append(r)
     joints.append(Joint(r, None, [300, 30]))
     for i in range(1, 10):
-        r = Rect([300, 50 + 50 * i], [20, 60])
+        if i < 9:
+            r = Rect([300, 50 + 50 * i], [20, 60])
+        else:
+            r = Rect([300, 50 + 50 * i], [20, 60], mass=mass)
         bodies.append(r)
         joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
         bodies[-1].add_no_collision(bodies[-2])
@@ -171,7 +170,7 @@ def make_world(forces, mass):
     c1 = Circle([50, 500], 20)
     bodies.append(c1)
     for f in forces:
-        c1.add_force(ExternalForce(f, multiplier=500 * m))
+        c1.add_force(ExternalForce(f, multiplier=300 * m))
 
     world = World(bodies, joints, dt=DT)
     return world, r
@@ -230,7 +229,7 @@ def positions_run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                     recorder.record(world.t)
 
             elapsed_time = time.time() - start_time
-            print('\r ', '{} / {}  {}'.format(int(world.t), int(elapsed_time),
+            print('\r ', '{} / {}  {} '.format(int(world.t), int(elapsed_time),
                                               1 / animation_dt), end='')
     return positions
 
