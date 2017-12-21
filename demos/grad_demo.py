@@ -30,7 +30,7 @@ def grad_demo(screen):
     # initial_state = world.save_state()
     run_world(world, run_time=TIME, screen=screen)
 
-    learning_rate = 0.01
+    learning_rate = 0.001
     max_iter = 100
 
     dist_hist = []
@@ -43,7 +43,7 @@ def grad_demo(screen):
         # world.reset_engine()
         # c = world.bodies[0]
         # c.fric_coeff = next_fric_coeff
-        run_world(world, run_time=TIME, screen=screen)
+        run_world(world, run_time=TIME, screen=None)
 
         dist = (target.pos - c.pos).norm()
         dist.backward()
@@ -54,8 +54,8 @@ def grad_demo(screen):
         # grad.clamp_(-10, 10)
         # temp = c.fric_coeff.data - learning_rate * grad
         # temp.clamp_(1e-7, 1)
+        learning_rate /= 1.1
         # next_fric_coeff = Variable(temp, requires_grad=True)
-        # learning_rate /= 1.1
         print(i, '/', max_iter, dist.data[0])
         print(grad)
         # print(next_fric_coeff)
@@ -71,7 +71,7 @@ def grad_demo(screen):
     # world.load_state(initial_state)
     # world.reset_engine()
     rec = None
-    rec = Recorder(DT, screen)
+    # rec = Recorder(DT, screen)
     run_world(world, run_time=TIME, screen=screen, recorder=rec)
     dist = (target.pos - c.pos).norm()
     print(dist.data[0])
@@ -82,25 +82,25 @@ def grad_demo(screen):
     plot(dist_hist)
 
 
-# def make_world(learned_force):
-#     bodies = []
-#     joints = []
-#
-#     target = Circle([500, 300], 30)
-#     bodies.append(target)
-#
-#     c1 = Circle([250, 210], 30)
-#     bodies.append(c1)
-#     c1.add_force(ExternalForce(learned_force))
-#     c1.add_no_collision(target)
-#
-#     c2 = Circle([400, 250], 30)
-#     bodies.append(c2)
-#     # joints.append(Joint(c2, None, [500, 275]))
-#     c2.add_no_collision(target)
-#
-#     world = World(bodies, joints, dt=DT)
-#     return world, c2, target
+def make_world(learned_force):
+    bodies = []
+    joints = []
+
+    target = Circle([500, 300], 30)
+    bodies.append(target)
+
+    c1 = Circle([250, 210], 30)
+    bodies.append(c1)
+    c1.add_force(ExternalForce(learned_force))
+    c1.add_no_collision(target)
+
+    c2 = Circle([400, 250], 30)
+    bodies.append(c2)
+    # joints.append(Joint(c2, None, [500, 275]))
+    c2.add_no_collision(target)
+
+    world = World(bodies, joints, dt=DT)
+    return world, c2, target
 
 
 # def make_world(learned_force):
@@ -134,32 +134,32 @@ def grad_demo(screen):
 #     return world, c, target
 
 
-def make_world(learned_force):
-    bodies = []
-    joints = []
-
-    # c = Circle([100, 259], 30)
-    # bodies.append(c)
-    # c.add_force(ExternalForce(learned_force))
-    # c.add_force(ExternalForce(multiplier=10))
-    c = Rect([100, 259], (60, 60))
-    bodies.append(c)
-    c.add_force(ExternalForce(learned_force))
-    c.add_force(ExternalForce(multiplier=1))
-
-    target = Circle([500, 259], 30)
-    bodies.append(target)
-    target.add_no_collision(c)
-
-    r = Rect([500, 300], [1000, 20])
-    bodies.append(r)
-    joints.append(Joint(r, None, [50, 275]))
-    joints.append(Joint(r, None, [950, 325]))
-    # r = Rect([300, 100], [25, 500], mass=10000)
-    # bodies.append(r)
-
-    world = World(bodies, joints, dt=DT)
-    return world, c, target
+# def make_world(learned_force):
+#     bodies = []
+#     joints = []
+#
+#     # c = Circle([100, 259], 30)
+#     # bodies.append(c)
+#     # c.add_force(ExternalForce(learned_force))
+#     # c.add_force(ExternalForce(multiplier=10))
+#     c = Rect([100, 259], (60, 60))
+#     bodies.append(c)
+#     c.add_force(ExternalForce(learned_force))
+#     c.add_force(ExternalForce(multiplier=1))
+#
+#     target = Circle([500, 259], 30)
+#     bodies.append(target)
+#     target.add_no_collision(c)
+#
+#     r = Rect([500, 300], [1000, 20])
+#     bodies.append(r)
+#     joints.append(Joint(r, None, [50, 275]))
+#     joints.append(Joint(r, None, [950, 325]))
+#     # r = Rect([300, 100], [25, 500], mass=10000)
+#     # bodies.append(r)
+#
+#     world = World(bodies, joints, dt=DT)
+#     return world, c, target
 
 
 if __name__ == '__main__':
