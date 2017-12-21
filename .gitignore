@@ -12,3 +12,4 @@ videos
 *.lprof
 .DS_Store
 .idea
+.cache

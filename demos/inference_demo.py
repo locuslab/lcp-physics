@@ -166,11 +166,11 @@ def make_world(forces, mass):
     bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
 
     # make projectile
-    m = 3
+    m = 13
     c1 = Circle([50, 500], 20)
     bodies.append(c1)
     for f in forces:
-        c1.add_force(ExternalForce(f, multiplier=300 * m))
+        c1.add_force(ExternalForce(f, multiplier=100 * m))
 
     world = World(bodies, joints, dt=DT)
     return world, r

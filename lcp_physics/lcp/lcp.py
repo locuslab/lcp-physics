@@ -21,6 +21,7 @@ class LCPFunction(Function):
         self.notImprovedLim = notImprovedLim
         self.maxIter = maxIter
         self.solver = solver
+        self.Q_LU = self.S_LU = self.R = None
 
     def forward(self, Q_, p_, G_, h_, A_, b_, F_):
         # TODO Write detailed documentation.
@@ -42,15 +43,15 @@ class LCPFunction(Function):
         self.neq, self.nineq, self.nz = neq, nineq, nz
 
         if self.solver == LCPSolvers.PDIPM_BATCHED:
-            Q_LU = S_LU = R = None
-            # Q_LU, S_LU, R = pdipm_b.pre_factor_kkt(Q, G, F, A)
+            self.Q_LU, self.S_LU, self.R = pdipm_b.pre_factor_kkt(Q, G, F, A)
             zhats, self.nus, self.lams, self.slacks = pdipm_b.forward(
-                Q, p, G, h, A, b, F, Q_LU, S_LU, R,
+                Q, p, G, h, A, b, F, self.Q_LU, self.S_LU, self.R,
                 self.eps, self.verbose, self.notImprovedLim,
-                self.maxIter, solver=pdipm_b.KKTSolvers.LU_FULL)
+                self.maxIter, solver=pdipm_b.KKTSolvers.LU_PARTIAL)
         else:
             assert False
 
+        # self.verify_lcp(zhats, Q, G, A, F, p, h)
         self.save_for_backward(zhats, Q_, p_, G_, h_, A_, b_, F_)
         return zhats
 
@@ -68,10 +69,11 @@ class LCPFunction(Function):
         # neq, nineq, nz = self.neq, self.nineq, self.nz
         neq, nineq = self.neq, self.nineq
 
-        D = torch.diag((self.lams / self.slacks).squeeze(0)).unsqueeze(0)
+        # D = torch.diag((self.lams / self.slacks).squeeze(0)).unsqueeze(0)
+        d = self.lams / self.slacks
         # XXX
-        dx, _, dlam, dnu = pdipm_b.solve_kkt_ir_inverse(
-            Q, D, G, A, F,
+        pdipm_b.factor_kkt(self.S_LU, self.R, d)
+        dx, _, dlam, dnu = pdipm_b.solve_kkt(self.Q_LU, d, G, A, self.S_LU,
             dl_dzhat, torch.zeros(nBatch, nineq).type_as(G),
             torch.zeros(nBatch, nineq).type_as(G),
             torch.zeros(nBatch, neq).type_as(G))
@@ -102,3 +104,27 @@ class LCPFunction(Function):
 
         grads = (dQs, dps, dGs, dhs, dAs, dbs, dFs)
         return grads
+
+    def verify_lcp(self, zhats, Q, G, A, F, p, h):
+        epsilon = 1e-7
+
+        c1 = (self.slacks >= 0).all()
+        c2 = (self.lams >= 0).all()
+        c3 = (torch.abs(self.slacks * self.lams) < epsilon).all()
+        conds = c1 and c2 and c3
+        l1 = Q.matmul(zhats.unsqueeze(2)) + G.transpose(1, 2).matmul(self.lams.unsqueeze(2)) \
+             + p.unsqueeze(2)
+        if A.dim() > 0:
+            l1 += A.transpose(1, 2).matmul(self.nus.unsqueeze(2))
+        # XXX Flipped signs for G*z. Why?
+        l2 = -G.matmul(zhats.unsqueeze(2)) + F.matmul(self.lams.unsqueeze(2)) \
+             + h.unsqueeze(2) - self.slacks.unsqueeze(2)
+        l3 = A.matmul(zhats.unsqueeze(2)) if A.dim() > 0 else torch.Tensor([0])
+        lcp = (torch.abs(l1) < epsilon).all() and (torch.abs(l2) < epsilon).all() \
+              and (torch.abs(l3) < epsilon).all()
+
+        if not conds:
+            print('Complementarity conditions have imprecise solution.')
+        if not lcp:
+            print('LCP has imprecise solution.')
+        return conds and lcp

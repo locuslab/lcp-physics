@@ -12,7 +12,6 @@ import numpy as np
 
 from .utils import Params
 from lcp_physics.lcp.lcp import LCPFunction
-from lcp_physics.lcp.solvers.batch_pdipm import forward, KKTSolvers, pre_factor_kkt
 
 
 Tensor = Params.TENSOR_TYPE
@@ -68,8 +67,6 @@ class PdipmEngine(Engine):
             TJc = Jc.unsqueeze(0) / 2
             Tu = u[:world.M.size(0)].unsqueeze(0)
             Tv = v.unsqueeze(0)
-            Q_LU = S_LU = R = None
-            # Q_LU, S_LU, R = pre_factor_kkt(TM, TJc, TJe)
             #######
             E = world.E()
             mu = world.mu()
@@ -88,6 +85,7 @@ class PdipmEngine(Engine):
             h = torch.cat([Tv,
                            Variable(Tensor(Tv.size(0), TJf.size(1) + Tmu.size(1))
                                     .zero_())], 1)
+
             # adjust precision depending on difficulty of step, with maxIter in [3, 20]
             # measured by number of iterations performed on current step (world.dt / dt)
             max_iter = max(int(20 / (world.dt / dt)), 3)
@@ -100,8 +98,6 @@ class PdipmEngine(Engine):
             ge = torch.matmul(Je, new_v)
             if Jc is not None:
                 gc = torch.matmul(Jc, new_v) + torch.matmul(Jc, new_v * -world.restitutions)
-            else:
-                gc = None
             dp = self.post_stabilization(world.M, Je, Jc, ge, gc)
             new_v = (new_v - dp).squeeze(0)  # XXX Is sign correct?
         return new_v
@@ -126,8 +122,6 @@ class PdipmEngine(Engine):
             Tb = u[M.size(0):].unsqueeze(0)
             Tv = v.unsqueeze(0)
             F = Variable(Tensor(TJc.size(1), TJc.size(1)).zero_().unsqueeze(0))
-            Q_LU = S_LU = R = None
-            # Q_LU, S_LU, R = pre_factor_kkt(TM, TJc, TJe)
             x = self.lcp_solver()(TM, Th, TJc, Tv, TJe, Tb, F)
         # x = np.asarray(x).ravel()
         dp = x[:M.size(0)]

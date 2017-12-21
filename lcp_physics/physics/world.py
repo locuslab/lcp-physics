@@ -229,10 +229,10 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
         background = background.convert()
         background.fill((255, 255, 255))
 
-        animation_dt = dt
-        elapsed_time = 0.
-        prev_frame_time = -animation_dt
-        start_time = time.time()
+    animation_dt = dt
+    elapsed_time = 0.
+    prev_frame_time = -animation_dt
+    start_time = time.time()
 
     while world.t < run_time:
         world.step()
@@ -273,8 +273,6 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                     recorder.record(world.t)
 
             elapsed_time = time.time() - start_time
-            print('\r ', '{} / {}  {}'.format(int(world.t), int(elapsed_time),
-                                              1 / animation_dt), end='')
             if not recorder:
                 # Adjust frame rate dynamically to keep real time
                 wait_time = world.t - elapsed_time
@@ -286,3 +284,7 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                 # elif wait_time < 0:
                 #     animation_dt += 0.005 * -wait_time
                 # elapsed_time = time.time() - start_time
+
+        elapsed_time = time.time() - start_time
+        print('\r ', '{} / {}  {} '.format(int(world.t), int(elapsed_time),
+                                          1 / animation_dt), end='')

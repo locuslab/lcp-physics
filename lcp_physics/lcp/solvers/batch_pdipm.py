@@ -851,7 +851,7 @@ def factor_kkt(S_LU, R, d):
         factor_kkt_eye = torch.eye(nineq).repeat(
             nBatch, 1, 1).type_as(R).byte()
     T = R.clone()
-    T[factor_kkt_eye] += (1. / d).squeeze()
+    T[factor_kkt_eye] += (1. / d).view(-1)
 
     T_LU = btrifact_hack(T)
 
