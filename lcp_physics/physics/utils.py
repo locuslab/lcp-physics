@@ -55,7 +55,7 @@ class Recorder:
         self.screen = screen
         self.path = path
         if not os.path.exists(path):
-            os.makedirs(path)
+            os.makedirs(path, exist_ok=True)
 
     def record(self, t):
         if t - self.prev_t >= self.dt:
