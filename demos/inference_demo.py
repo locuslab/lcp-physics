@@ -68,7 +68,7 @@ def inference_demo(screen):
     # world.load_state(initial_state)
     # world.reset_engine()
     rec = None
-    rec = Recorder(DT, screen)
+    # rec = Recorder(DT, screen)
     positions_run_world(world, run_time=10, screen=screen, recorder=rec)
     loss = MSELoss()(positions, ground_truth_pos)
     print(loss.data[0])
