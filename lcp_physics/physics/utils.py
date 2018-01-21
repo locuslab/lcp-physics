@@ -19,7 +19,7 @@ class Params:
     # Default simulation parameters
     DEFAULT_RESTITUTION = 0.5
 
-    DEFAULT_FRIC_COEFF = 0.25
+    DEFAULT_FRIC_COEFF = 0.35
     DEFAULT_FRIC_DIRS = 2
 
     DEFAULT_FPS = 30
@@ -80,6 +80,16 @@ def polar_to_cart(r, theta):
 
 def cross_2d(v1, v2):
     return v1[0] * v2[1] - v1[1] * v2[0]
+
+
+def binverse(x):
+    """Simple loop for batch inverse.
+    """
+    assert(x.dim() == 3)
+    ret = Variable(x.data.new(x.size()))
+    for i in range(len(x)):
+        ret[i] = torch.inverse(x[i])
+    return ret
 
 
 def plot(y_axis, x_axis=None):

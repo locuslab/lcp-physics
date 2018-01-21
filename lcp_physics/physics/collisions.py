@@ -276,7 +276,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[X] > rot_cs[sec_closest].data[X]:
                                     sec_closest = i
                             pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[X] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[Y] > rot_b1_pos.data[Y] + b1.dims.data[Y] / 2:
                                 pt1 = torch.cat([-b1.dims[X] / 2, b1.dims[Y] / 2])
@@ -318,7 +318,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[X] < rot_cs[sec_closest].data[X]:
                                     sec_closest = i
                             pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[X] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[Y] > rot_b1_pos.data[Y] + b1.dims.data[Y] / 2:
                                 pt1 = torch.cat([b1.dims[X] / 2, b1.dims[Y] / 2])
@@ -367,7 +367,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[Y] > rot_cs[sec_closest].data[Y]:
                                     sec_closest = i
                             pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[Y] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[X] > rot_b1_pos.data[X] + b1.dims.data[X] / 2:
                                 pt1 = torch.cat([b1.dims[X] / 2, -b1.dims[Y] / 2])
@@ -409,7 +409,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[Y] < rot_cs[sec_closest].data[Y]:
                                     sec_closest = i
                             pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[Y] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[X] > rot_b1_pos.data[X] + b1.dims.data[X] / 2:
                                 pt1 = torch.cat([b1.dims[X] / 2, b1.dims[Y] / 2])
@@ -470,7 +470,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[X] > rot_cs[sec_closest].data[X]:
                                     sec_closest = i
                             pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[X] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[Y] > rot_b2_pos.data[Y] + b2.dims.data[Y] / 2:
                                 pt2 = torch.cat([-b2.dims[X] / 2, b2.dims[Y] / 2])
@@ -513,7 +513,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[X] < rot_cs[sec_closest].data[X]:
                                     sec_closest = i
                             pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[X] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[Y] > rot_b2_pos.data[Y] + b2.dims.data[Y] / 2:
                                 pt2 = torch.cat([b2.dims[X] / 2, b2.dims[Y] / 2])
@@ -561,7 +561,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[Y] > rot_cs[sec_closest].data[Y]:
                                     sec_closest = i
                             pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[Y] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[X] > rot_b2_pos.data[X] + b2.dims.data[X] / 2:
                                 pt2 = torch.cat([b2.dims[X] / 2, -b2.dims[Y] / 2])
@@ -604,7 +604,7 @@ class DiffCollisionHandler(CollisionHandler):
                                 elif sec_closest is None or rot_cs[i].data[Y] < rot_cs[sec_closest].data[Y]:
                                     sec_closest = i
                             pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[Y] > world.par_eps + max(penetration.data[0], 0):
+                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
                                 sec_closest = None
                             if rot_cs[closest].data[X] > rot_b2_pos.data[X] + b2.dims.data[X] / 2:
                                 pt2 = torch.cat([b2.dims[X] / 2, b2.dims[Y] / 2])

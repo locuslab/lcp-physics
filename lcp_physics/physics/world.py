@@ -10,7 +10,6 @@ import lcp_physics.physics.engines as engines_module
 import lcp_physics.physics.collisions as collisions_module
 from .utils import Indices, Params, cross_2d, get_instance
 
-
 X, Y = Indices.X, Indices.Y
 DIM = Params.DIM
 
@@ -20,7 +19,7 @@ Tensor = Params.TENSOR_TYPE
 class World:
     def __init__(self, bodies, joints, dt=Params.DEFAULT_DT, engine=Params.DEFAULT_ENGINE,
                  collision_callback=Params.DEFAULT_COLLISION, eps=Params.DEFAULT_EPSILON,
-                 par_eps=Params.DEFAULT_PAR_EPS, fric_dirs=Params.DEFAULT_FRIC_DIRS,
+                 parallel_eps=Params.DEFAULT_PAR_EPS, fric_dirs=Params.DEFAULT_FRIC_DIRS,
                  post_stab=Params.POST_STABILIZATION):
         self.collisions_debug = None  # XXX
 
@@ -31,7 +30,7 @@ class World:
         self.t = 0
         self.dt = dt
         self.eps = eps
-        self.par_eps = par_eps
+        self.parallel_eps = parallel_eps
         self.fric_dirs = fric_dirs
         self.post_stab = post_stab
 
@@ -47,23 +46,20 @@ class World:
         for j in joints:
             b1, b2 = j.body1, j.body2
             i1 = bodies.index(b1)
-            i2 = None
-            if b2 is not None:
-                i2 = bodies.index(b2)
+            i2 = bodies.index(b2) if b2 else None
             self.joints.append((j, i1, i2))
 
         M_size = bodies[0].M.size(0)
-        self.M = Variable(Tensor(M_size * len(bodies), M_size * len(bodies)).zero_())
+        self._M = Variable(Tensor(M_size * len(bodies), M_size * len(bodies)).zero_())
         # TODO Better way for diagonal block matrix?
         for i, b in enumerate(bodies):
-            self.M[i * M_size:(i+1) * M_size, i * M_size:(i+1) * M_size] = b.M
+            self._M[i * M_size:(i + 1) * M_size, i * M_size:(i + 1) * M_size] = b.M
         self.set_v(torch.cat([b.v for b in bodies]))
 
         self.restitutions = Variable(Tensor(len(self.v)))
         for i in range(len(bodies)):
-            # XXX why is 1/2 correction needed?
             self.restitutions[i * self.vec_len:(i + 1) * self.vec_len] = \
-                bodies[i].restitution.repeat(3) / 2
+                bodies[i].restitution.repeat(3)
 
         self.collisions = None
         self.find_collisions()
@@ -77,7 +73,7 @@ class World:
         assert all([c[0][3].data[0] <= 0 for c in self.collisions]), \
             'Interpenetration at beginning of step'
         while True:
-            new_v = self.engine.solve_dynamics(self, dt, self.post_stab).squeeze()
+            new_v = self.engine.solve_dynamics(self, dt, self.post_stab)
             self.set_v(new_v)
             # try step with current dt
             for body in self.bodies:
@@ -90,8 +86,9 @@ class World:
             else:
                 dt /= 2
                 # reset state to beginning of step
-                self.set_v(start_v)
-                self.set_p(start_p.clone())  # XXX Avoid clone?
+                # XXX Avoid clones?
+                self.set_v(start_v.clone())
+                self.set_p(start_p.clone())
                 for j, c in zip(self.joints, start_rot_joints):
                     # XXX Clone necessary?
                     j[0].rot1 = c[0].clone()
@@ -100,10 +97,13 @@ class World:
                 self.collisions = start_collisions
         self.t += dt
 
+    def get_v(self):
+        return self.v
+
     def set_v(self, new_v):
         self.v = new_v
         for i, b in enumerate(self.bodies):
-            b.v = self.v[i * len(b.v):(i+1) * len(b.v)]
+            b.v = self.v[i * len(b.v):(i + 1) * len(b.v)]
 
     def set_p(self, new_p):
         for i, b in enumerate(self.bodies):
@@ -117,16 +117,21 @@ class World:
         # ODE collision detection
         self.space.collide([self], self.collision_callback)
 
+    def M(self):
+        return self._M
+
     def Je(self):
-        Je = Variable(Tensor(DIM * len(self.joints), self.vec_len * len(self.bodies)).zero_())
+        Je = Variable(Tensor(DIM * len(self.joints),
+                             self.vec_len * len(self.bodies)).zero_())
         for i, joint in enumerate(self.joints):
             J1, J2 = joint[0].J()
             i1 = joint[1]
             i2 = joint[2]
-            Je[i * DIM:(i+1) * DIM, i1 * self.vec_len:(i1 + 1) * self.vec_len] = J1
+            Je[i * DIM:(i + 1) * DIM,
+               i1 * self.vec_len:(i1 + 1) * self.vec_len] = J1
             if i2 is not None:
-                Je[i * DIM:(i+1) * DIM,
-                    i2 * self.vec_len:(i2 + 1) * self.vec_len] = J2
+                Je[i * DIM:(i + 1) * DIM,
+                   i2 * self.vec_len:(i2 + 1) * self.vec_len] = J2
         return Je
 
     def Jc(self):
@@ -166,10 +171,10 @@ class World:
                 torch.cat([cross_2d(c[2], dir2).unsqueeze(1),
                            dir2.unsqueeze(0)], dim=1),
             ], dim=0)
-            Jf[i * self.fric_dirs:(i+1) * self.fric_dirs,
-                i1 * self.vec_len:(i1 + 1) * self.vec_len] = J1
-            Jf[i * self.fric_dirs:(i+1) * self.fric_dirs,
-                i2 * self.vec_len:(i2 + 1) * self.vec_len] = -J2
+            Jf[i * self.fric_dirs:(i + 1) * self.fric_dirs,
+               i1 * self.vec_len:(i1 + 1) * self.vec_len] = J1
+            Jf[i * self.fric_dirs:(i + 1) * self.fric_dirs,
+               i2 * self.vec_len:(i2 + 1) * self.vec_len] = -J2
         return Jf
 
     def mu(self):
@@ -205,7 +210,7 @@ class World:
         self.set_p(state_dict['p'])
         self.set_v(state_dict['v'])
         self.t = state_dict['t']
-        self.M.detach_()
+        self._M.detach_()
         self.restitutions.detach_()
         import inspect
         for b in self.bodies:
@@ -220,10 +225,166 @@ class World:
         self.engine = self.engine.__class__()
 
 
+class BatchWorld:
+    def __init__(self, bodies, joints, dt=Params.DEFAULT_DT, engine=Params.DEFAULT_ENGINE,
+                 collision_callback=Params.DEFAULT_COLLISION, eps=Params.DEFAULT_EPSILON,
+                 parallel_eps=Params.DEFAULT_PAR_EPS, fric_dirs=Params.DEFAULT_FRIC_DIRS,
+                 post_stab=Params.POST_STABILIZATION):
+        self.t = 0.
+        self.dt = dt
+        self.engine = get_instance(engines_module, engine)
+        self.post_stab = post_stab
+
+        self.worlds = []
+        for i in range(len(bodies)):
+            w = World(bodies[i], joints[i], dt=dt, engine=engine,
+                      collision_callback=collision_callback, eps=eps,
+                      parallel_eps=parallel_eps, fric_dirs=fric_dirs,
+                      post_stab=post_stab)
+            self.worlds.append(w)
+
+        self.vec_len = self.worlds[0].vec_len
+        self._v = None
+        self.v_changed = True
+        self.collisions = self.has_collisions()
+        self.restitutions = torch.cat([w.restitutions.unsqueeze(0) for w in self.worlds], dim=0)
+
+    def step(self):
+        dt = self.dt
+        start_vs = self.get_v()
+        self.v_changed = True
+        start_ps = torch.cat([torch.cat([b.p for b in w.bodies]).unsqueeze(0) for w in self.worlds], dim=0)
+        start_rot_joints = [[(j[0].rot1, j[0].rot2) for j in w.joints] for w in self.worlds]
+        start_collisions = [w.collisions for w in self.worlds]
+        for w in self.worlds:
+            assert all([c[0][3].data[0] <= 0 for c in w.collisions]), \
+                'Interpenetration at beginning of step'
+        while True:
+            self.collisions = self.has_collisions()
+            new_v = self.engine.batch_solve_dynamics(self, dt, self.post_stab)
+            self.set_v(new_v)
+            # try step with current dt
+            done = []
+            for w in self.worlds:
+                for body in w.bodies:
+                    body.move(dt)
+                for joint in w.joints:
+                    joint[0].move(dt)
+                w.find_collisions()
+                done.append(all([c[0][3].data[0] <= 0 for c in w.collisions]))
+            if all(done):
+                break
+            else:
+                dt /= 2
+                # reset state to beginning of step
+                # XXX Avoid clones?
+                self.set_v(start_vs.clone())
+                self.set_p(start_ps.clone())
+                for i, w in enumerate(self.worlds):
+                    for j, c in zip(w.joints, start_rot_joints[i]):
+                        # XXX Clone necessary?
+                        j[0].rot1 = c[0].clone()
+                        j[0].rot2 = c[1].clone() if j[0].rot2 is not None else None
+                        j[0].update_pos()
+                    w.collisions = start_collisions[i]
+        self.t += dt
+        for w in self.worlds:
+            w.t += dt
+
+    def get_v(self):
+        if self.v_changed:
+            self._v = torch.cat([w.v.unsqueeze(0) for w in self.worlds], dim=0)
+            self.v_changed = False
+        return self._v
+
+    def set_v(self, new_v):
+        for i, w in enumerate(self.worlds):
+            w.set_v(new_v[i])
+
+    def set_p(self, new_p):
+        for i, w in enumerate(self.worlds):
+            w.set_p(new_p[i])
+
+    def has_collisions(self):
+        return any([w.collisions for w in self.worlds])
+
+    def apply_forces(self, t):
+        forces = []
+        for w in self.worlds:
+            forces.append(torch.cat([b.apply_forces(t) for b in w.bodies]).unsqueeze(0))
+        return torch.cat(forces, dim=0)
+
+    def find_collisions(self):
+        self.collisions = []
+        # ODE collision detection
+        self.space.collide([self], self.collision_callback)
+
+    # def gather_batch(self, func):
+    #     gather = []
+    #     for w in self.worlds:
+    #         gather.append(func().unsqueeze(0))
+    #     return torch.cat(gather, dim=0)
+
+    def M(self):
+        Ms = []
+        for w in self.worlds:
+            Ms.append(w.M().unsqueeze(0))
+        M = torch.cat(Ms, dim=0)
+        return M
+
+    def Je(self):
+        jes = []
+        for w in self.worlds:
+            jes.append(w.Je().unsqueeze(0))
+        Je = torch.cat(jes, dim=0)
+        return Je
+
+    def Jc(self):
+        jcs = []
+        for w in self.worlds:
+            jcs.append(w.Jc().unsqueeze(0))
+        Jc = torch.cat(jcs, dim=0)
+        return Jc
+
+    def Jf(self):
+        jfs = []
+        for w in self.worlds:
+            jfs.append(w.Jf().unsqueeze(0))
+        Jf = torch.cat(jfs, dim=0)
+        return Jf
+
+    def mu(self):
+        mus = []
+        for w in self.worlds:
+            mus.append(w.mu().unsqueeze(0))
+        mu = torch.cat(mus, dim=0)
+        return mu
+
+    def E(self):
+        Es = []
+        for w in self.worlds:
+            Es.append(w.E().unsqueeze(0))
+        E = torch.cat(Es, dim=0)
+        return E
+
+    def save_state(self):
+        raise NotImplementedError
+
+    def load_state(self, state_dict):
+        raise NotImplementedError
+
+    def reset_engine(self):
+        raise NotImplementedError
+
+
 def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
               screen=None, recorder=None):
     """Helper function to run a simulation forward once a world is created.
     """
+    # If in batched mode don't display simulation
+    if hasattr(world, 'worlds'):
+        screen = None
+
     if screen is not None:
         background = pygame.Surface(screen.get_size())
         background = background.convert()
@@ -276,7 +437,6 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
             if not recorder:
                 # Adjust frame rate dynamically to keep real time
                 wait_time = world.t - elapsed_time
-                # time.sleep(0.5)  # XXX
                 if wait_time >= 0 and not recorder:
                     wait_time += animation_dt  # XXX
                     time.sleep(max(wait_time - animation_dt, 0))
@@ -287,4 +447,4 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
 
         elapsed_time = time.time() - start_time
         print('\r ', '{} / {}  {} '.format(int(world.t), int(elapsed_time),
-                                          1 / animation_dt), end='')
+                                           1 / animation_dt), end='')

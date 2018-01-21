@@ -117,13 +117,15 @@ class Rect(Body):
         pts = [(p1 + self.pos).data.numpy(), (p2 + self.pos).data.numpy(),
                (p3 + self.pos).data.numpy(), (p4 + self.pos).data.numpy()]
 
-        r = pygame.draw.polygon(screen, self.col, pts, 1)
         # draw diagonals
         l1 = pygame.draw.line(screen, (0, 0, 255), pts[0], pts[2])
         l2 = pygame.draw.line(screen, (0, 0, 255), pts[1], pts[3])
         # draw center
         c = pygame.draw.circle(screen, (0, 0, 255),
                                self.pos.data.numpy().astype(int), 1)
+
+        # draw rectangle
+        r = pygame.draw.polygon(screen, self.col, pts, self.thickness)
         return [r, l1, l2, c]
 
 
@@ -153,11 +155,12 @@ class Circle(Body):
     def draw(self, screen):
         center = self.pos.data.numpy().astype(int)
         rad = int(self.rad.data[0])
-        c = pygame.draw.circle(screen, self.col, center,
-                               rad, self.thickness)
         # draw radius to visualize orientation
         r = pygame.draw.line(screen, (0, 0, 255), center,
                              center + [math.cos(self.rot.data[0]) * rad,
                                        math.sin(self.rot.data[0]) * rad],
                              self.thickness)
+        # draw circle
+        c = pygame.draw.circle(screen, self.col, center,
+                               rad, self.thickness)
         return [c, r]

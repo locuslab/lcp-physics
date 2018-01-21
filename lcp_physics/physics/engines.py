@@ -10,7 +10,7 @@ from scipy.sparse.csc import csc_matrix
 from scipy.sparse.linalg.dsolve.linsolve import splu, spsolve
 import numpy as np
 
-from .utils import Params
+from .utils import Params, binverse
 from lcp_physics.lcp.lcp import LCPFunction
 
 
@@ -22,6 +22,9 @@ class Engine:
         pass
 
     def solve_dynamics(self, world, dt, stabilization=False):
+        raise NotImplementedError
+
+    def batch_solve_dynamics(self, world, dt, stabilization=False):
         raise NotImplementedError
 
 
@@ -37,12 +40,12 @@ class PdipmEngine(Engine):
         neq = Je.size(0) if Je.ndimension() > 0 else 0
 
         f = world.apply_forces(t)
-        u = torch.matmul(world.M, world.v) + dt * f
+        u = torch.matmul(world.M(), world.get_v()) + dt * f
         if neq > 0:
             u = torch.cat([u, Variable(Tensor(neq).zero_())])
         if not world.collisions:
             # No contact constraints, no need to solve LCP
-            P = world.M
+            P = world.M()
             if neq > 0:
                 P = torch.cat([torch.cat([P, -Je.t()], dim=1),
                                torch.cat([Je, Variable(Tensor(neq, neq).zero_())],
@@ -51,23 +54,23 @@ class PdipmEngine(Engine):
                 x = torch.matmul(torch.inverse(P), u)  # Eq. 2.41
             except RuntimeError:  # XXX
                 print('\nRegularizing singular matrix.\n')
-                x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0), P.size(1)).type_as(P.data) * 1e-10)), u)
+                x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0),
+                        P.size(1)).type_as(P.data) * 1e-10)), u)
         else:
             # Solve Mixed LCP (Kline 2.7.2)
             # TODO Organize
             Jc = world.Jc()
-            v = torch.matmul(Jc, world.v * world.restitutions)
-            TM = world.M.unsqueeze(0)
+            v = torch.matmul(Jc, world.get_v() * world.restitutions)
+            TM = world.M().unsqueeze(0)
             if neq > 0:
                 TJe = Je.unsqueeze(0)
                 b = Variable(Tensor(Je.size(0)).unsqueeze(0).zero_())
             else:
                 TJe = Variable(Tensor())
                 b = Variable(None)
-            TJc = Jc.unsqueeze(0) / 2
-            Tu = u[:world.M.size(0)].unsqueeze(0)
+            TJc = Jc.unsqueeze(0)
+            Tu = u[:world.M().size(0)].unsqueeze(0)
             Tv = v.unsqueeze(0)
-            #######
             E = world.E()
             mu = world.mu()
             Jf = world.Jf()
@@ -98,7 +101,7 @@ class PdipmEngine(Engine):
             ge = torch.matmul(Je, new_v)
             if Jc is not None:
                 gc = torch.matmul(Jc, new_v) + torch.matmul(Jc, new_v * -world.restitutions)
-            dp = self.post_stabilization(world.M, Je, Jc, ge, gc)
+            dp = self.post_stabilization(world.M(), Je, Jc, ge, gc)
             new_v = (new_v - dp).squeeze(0)  # XXX Is sign correct?
         return new_v
 
@@ -126,3 +129,69 @@ class PdipmEngine(Engine):
         # x = np.asarray(x).ravel()
         dp = x[:M.size(0)]
         return dp
+
+    def batch_solve_dynamics(self, world, dt, stabilization=False):
+        t = world.t
+        # Get Jacobians
+        M = world.M()
+        batch_size = M.size(0)
+        Je = world.Je()
+        neq = Je.size(1)
+        f = world.apply_forces(t)
+        u = torch.bmm(M, world.get_v().unsqueeze(2)).squeeze(2) + dt * f
+        if not world.collisions:
+            # No contact constraints, no need to solve LCP
+            if neq > 0:
+                u = torch.cat([u, Variable(Tensor(batch_size, neq).zero_())], 1)
+                A = torch.cat([torch.cat([M, -Je.transpose(1, 2)], dim=2),
+                               torch.cat([Je, Variable(Tensor(batch_size, neq, neq).zero_())],
+                                         dim=2)], dim=1)
+            try:
+                x = torch.bmm(binverse(A), u.unsqueeze(2)).squeeze(2)  # Eq. 2.41
+            except RuntimeError:  # XXX
+                print('\nRegularizing singular matrix.\n')
+                # XXX Use expand below?
+                reg = Variable(torch.eye(A.size(1), A.size(2)).type_as(A.data) * 1e-10).repeat(A.size(0), 1, 1)
+                x = torch.bmm(binverse(A + reg), u.unsqueeze(2)).squeeze(2)
+        else:
+            # Solve Mixed LCP (Kline 2.7.2)
+            # TODO Organize
+            Jc = world.Jc()
+            v = torch.bmm(Jc, (world.get_v() * world.restitutions).unsqueeze(2)).squeeze(2)
+            if neq > 0:
+                b = Variable(Tensor(batch_size, Je.size(1)).zero_())
+            else:
+                Je = Variable(Tensor())
+                b = Variable(None)
+            E = world.E()
+            mu = world.mu()
+            Jf = world.Jf()
+
+            G = torch.cat([Jc, Jf,
+                           Variable(Tensor(Jf.size(0), mu.size(1), Jf.size(2))
+                                    .zero_())], dim=1)
+            F = Variable(Tensor(G.size(0), G.size(1), G.size(1)).zero_())
+
+            F[:, Jc.size(1):-E.size(2), -E.size(2):] = E
+            F[:, -mu.size(1):, :mu.size(2)] = mu
+            F[:, -mu.size(1):, mu.size(2):mu.size(2) + E.size(1)] = \
+                -E.transpose(1, 2)
+            h = torch.cat([v,
+                           Variable(Tensor(v.size(0), Jf.size(1) + mu.size(1))
+                                    .zero_())], 1)
+
+            # adjust precision depending on difficulty of step, with maxIter in [3, 20]
+            # measured by number of iterations performed on current step (world.dt / dt)
+            max_iter = max(int(20 / (world.dt / dt)), 3)
+            x = -self.lcp_solver(maxIter=max_iter, verbose=-1)(M, u, G, h, Je, b, F)
+
+        new_v = x[:, :world.vec_len * len(world.worlds[0].bodies)]
+
+        # Post-stabilization
+        if stabilization:
+            ge = torch.matmul(Je, new_v)
+            if Jc is not None:
+                gc = torch.matmul(Jc, new_v) + torch.matmul(Jc, new_v * -world.restitutions)
+            dp = self.post_stabilization(world.M(), Je, Jc, ge, gc)
+            new_v = (new_v - dp).squeeze(0)  # XXX Is sign correct?
+        return new_v
