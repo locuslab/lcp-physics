@@ -6,7 +6,9 @@ import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, eye, hstack, vstack, diags, block_diag, bmat
 from scipy.sparse.linalg import splu, spsolve
+
 from lcp_physics.lcp.util import get_sizes, bdiag
+from lcp_physics.physics.utils import binverse
 
 
 shown_btrifact_warning = False
@@ -615,7 +617,7 @@ def solve_kkt_inverse(Q_tilde, D, G, A, C_tilde, rx, rs, rz, ry, eps):
     full_mat = torch.cat([torch.cat([H_, A_.transpose(1,2)], 2),
                           torch.cat([A_, C_tilde], 2)], 1)
     full_res = torch.cat([g_, h_], 1)
-    sol = torch.bmm(full_mat.squeeze(0).inverse().unsqueeze(0), full_res.unsqueeze(2)).squeeze(2)
+    sol = torch.bmm(binverse(full_mat), full_res.unsqueeze(2)).squeeze(2)
 
     dx = sol[:, :nz]
     ds = sol[:, nz:nz+nineq]

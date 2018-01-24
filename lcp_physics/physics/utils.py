@@ -30,6 +30,7 @@ class Params:
 
     # Tensor type
     TENSOR_TYPE = torch.DoubleTensor
+    # TENSOR_TYPE = torch.cuda.FloatTensor
 
     # Post stabilization flag
     POST_STABILIZATION = False
@@ -85,8 +86,10 @@ def cross_2d(v1, v2):
 def binverse(x):
     """Simple loop for batch inverse.
     """
-    assert(x.dim() == 3)
-    ret = Variable(x.data.new(x.size()))
+    assert(x.dim() == 3), 'Input does not have batch dimension.'
+    x_ = x.data if type(x) is Variable else x
+    ret = x_.new(x.size())
+    ret = Variable(ret) if type(x) is Variable else ret
     for i in range(len(x)):
         ret[i] = torch.inverse(x[i])
     return ret
