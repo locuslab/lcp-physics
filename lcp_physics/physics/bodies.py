@@ -63,8 +63,7 @@ class Body(object):
         self.rot = self.p[0:1]
         self.pos = self.p[1:]
 
-        self.geom.setPosition(torch.cat([self.pos.data,
-                                         Tensor(1).zero_()]))
+        self.geom.setPosition([self.pos[0], self.pos[1], 0.0])
 
         if update_geom_rotation:
             # XXX sign correction

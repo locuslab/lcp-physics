@@ -183,7 +183,7 @@ class World:
     @lru_cache()
     def _memoized_mu(self, *collisions):
         # collisions is argument so that lru_cache works
-        mu = Variable(torch.zeros(len(self.collisions)))
+        mu = Variable(Tensor(len(self.collisions)).zero_())
         for i, collision in enumerate(self.collisions):
             i1 = collision[1]
             i2 = collision[2]
@@ -196,7 +196,7 @@ class World:
     @lru_cache()
     def _memoized_E(self, num_collisions):
         n = self.fric_dirs * num_collisions
-        E = torch.zeros(n, num_collisions)
+        E = Tensor(n, num_collisions).zero_()
         for i in range(num_collisions):
             E[i * self.fric_dirs: (i + 1) * self.fric_dirs, i] += 1
         return Variable(E)
@@ -340,30 +340,50 @@ class BatchWorld:
         return Je
 
     def Jc(self):
+        max_collisions = max([len(w.collisions) for w in self.worlds])
         jcs = []
         for w in self.worlds:
-            jcs.append(w.Jc().unsqueeze(0))
+            if w.collisions:
+                jcs.append(w.Jc().unsqueeze(0))
+            else:
+                jcs.append(Variable(w._M.data.new(1, max_collisions,
+                    self.vec_len * len(w.bodies)).zero_()))
         Jc = torch.cat(jcs, dim=0)
         return Jc
 
     def Jf(self):
+        max_collisions = max([len(w.collisions) for w in self.worlds])
         jfs = []
         for w in self.worlds:
-            jfs.append(w.Jf().unsqueeze(0))
+            if w.collisions:
+                jfs.append(w.Jf().unsqueeze(0))
+            else:
+                jfs.append(Variable(w._M.data.new(1, 2 * max_collisions,
+                    self.vec_len * len(w.bodies)).zero_()))
         Jf = torch.cat(jfs, dim=0)
         return Jf
 
     def mu(self):
+        max_collisions = max([len(w.collisions) for w in self.worlds])
         mus = []
         for w in self.worlds:
-            mus.append(w.mu().unsqueeze(0))
+            if w.collisions:
+                mus.append(w.mu().unsqueeze(0))
+            else:
+                mus.append(Variable(w._M.data.new(1, max_collisions,
+                    max_collisions).zero_()))
         mu = torch.cat(mus, dim=0)
         return mu
 
     def E(self):
+        max_collisions = max([len(w.collisions) for w in self.worlds])
         Es = []
         for w in self.worlds:
-            Es.append(w.E().unsqueeze(0))
+            if w.collisions:
+                Es.append(w.E().unsqueeze(0))
+            else:
+                Es.append(Variable(w._M.data.new(1, 2 * max_collisions,
+                    max_collisions).zero_()))
         E = torch.cat(Es, dim=0)
         return E
 
