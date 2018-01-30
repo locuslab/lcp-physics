@@ -2,7 +2,6 @@ import time
 from functools import lru_cache
 
 import ode
-import pygame
 import torch
 from torch.autograd import Variable
 
@@ -54,6 +53,14 @@ class World:
         # TODO Better way for diagonal block matrix?
         for i, b in enumerate(bodies):
             self._M[i * M_size:(i + 1) * M_size, i * M_size:(i + 1) * M_size] = b.M
+        try:
+            self._invM = torch.inverse(self._M)
+        except RuntimeError:  # XXX
+            print('Regularizing singular matrix.')
+            # XXX Use expand below?
+            reg = Variable(torch.eye(M_.size(0), M_.size(1)).type_as(M_.data) * 1e-7)
+            self._invM = torch.inverse(self.M_ + reg)
+
         self.set_v(torch.cat([b.v for b in bodies]))
 
         self.restitutions = Variable(Tensor(len(self.v)))
@@ -119,6 +126,9 @@ class World:
 
     def M(self):
         return self._M
+
+    def invM(self):
+        return self._invM
 
     def Je(self):
         Je = Variable(Tensor(DIM * len(self.joints),
@@ -247,7 +257,7 @@ class BatchWorld:
         self._v = None
         self.v_changed = True
         self.collisions = self.has_collisions()
-        self.restitutions = torch.cat([w.restitutions.unsqueeze(0) for w in self.worlds], dim=0)
+        self._restitutions = torch.cat([w.restitutions.unsqueeze(0) for w in self.worlds], dim=0)
 
     def step(self):
         dt = self.dt
@@ -291,15 +301,27 @@ class BatchWorld:
         for w in self.worlds:
             w.t += dt
 
-    def get_v(self):
+    def get_v(self, num_colls=None):
         if self.v_changed:
             self._v = torch.cat([w.v.unsqueeze(0) for w in self.worlds], dim=0)
             self.v_changed = False
+        # TODO Optimize / organize
+        if num_colls is not None:
+            v = torch.cat([w.v.unsqueeze(0) for w in self.worlds if len(w.collisions) == num_colls], dim=0)
+            return v
         return self._v
 
     def set_v(self, new_v):
         for i, w in enumerate(self.worlds):
             w.set_v(new_v[i])
+
+    def restitutions(self, num_colls=None):
+        # TODO Organize / consolidate on other class
+        if num_colls is not None:
+            r = torch.cat([w.restitutions.unsqueeze(0) for w in self.worlds if len(w.collisions) == num_colls], dim=0)
+            return r
+        else:
+            return self._restitutions
 
     def set_p(self, new_p):
         for i, w in enumerate(self.worlds):
@@ -308,6 +330,12 @@ class BatchWorld:
     def has_collisions(self):
         return any([w.collisions for w in self.worlds])
 
+    def has_n_collisions(self, num_colls):
+        ret = torch.ByteTensor([len(w.collisions) == num_colls for w in self.worlds])
+        if self.worlds[0]._M.is_cuda:
+            ret = ret.cuda()
+        return ret
+    
     def apply_forces(self, t):
         forces = []
         for w in self.worlds:
@@ -325,65 +353,80 @@ class BatchWorld:
     #         gather.append(func().unsqueeze(0))
     #     return torch.cat(gather, dim=0)
 
-    def M(self):
+    def M(self, num_colls=None):
         Ms = []
         for w in self.worlds:
-            Ms.append(w.M().unsqueeze(0))
+            if num_colls is None or len(w.collisions) == num_colls:
+                Ms.append(w.M().unsqueeze(0))
         M = torch.cat(Ms, dim=0)
         return M
 
-    def Je(self):
+    def invM(self, num_colls=None):
+        invMs = []
+        for w in self.worlds:
+            if num_colls is None or len(w.collisions) == num_colls:
+                invMs.append(w.invM().unsqueeze(0))
+        invM = torch.cat(invMs, dim=0)
+        return invM
+
+    def Je(self, num_colls=None):
         jes = []
         for w in self.worlds:
-            jes.append(w.Je().unsqueeze(0))
-        Je = torch.cat(jes, dim=0)
+            if num_colls is None or len(w.collisions) == num_colls:
+                tmp = w.Je()
+                tmp = tmp.unsqueeze(0) if tmp.dim() > 0 else tmp
+                jes.append(tmp)
+        if jes[0].dim() > 0:
+            Je = torch.cat(jes, dim=0)
+        else:
+            Je = Variable(Tensor([]))
         return Je
 
-    def Jc(self):
-        max_collisions = max([len(w.collisions) for w in self.worlds])
+    def Jc(self, num_colls=None):
+        # max_collisions = max([len(w.collisions) for w in self.worlds])
         jcs = []
         for w in self.worlds:
-            if w.collisions:
+            if len(w.collisions) == num_colls:
                 jcs.append(w.Jc().unsqueeze(0))
-            else:
-                jcs.append(Variable(w._M.data.new(1, max_collisions,
-                    self.vec_len * len(w.bodies)).zero_()))
+            # else:
+            #     jcs.append(Variable(w._M.data.new(1, max_collisions,
+            #         self.vec_len * len(w.bodies)).zero_()))
         Jc = torch.cat(jcs, dim=0)
         return Jc
 
-    def Jf(self):
-        max_collisions = max([len(w.collisions) for w in self.worlds])
+    def Jf(self, num_colls=None):
+        # max_collisions = max([len(w.collisions) for w in self.worlds])
         jfs = []
         for w in self.worlds:
-            if w.collisions:
+            if num_colls is None or len(w.collisions) == num_colls:
                 jfs.append(w.Jf().unsqueeze(0))
-            else:
-                jfs.append(Variable(w._M.data.new(1, 2 * max_collisions,
-                    self.vec_len * len(w.bodies)).zero_()))
+            # else:
+            #     jfs.append(Variable(w._M.data.new(1, 2 * max_collisions,
+            #         self.vec_len * len(w.bodies)).zero_()))
         Jf = torch.cat(jfs, dim=0)
         return Jf
 
-    def mu(self):
-        max_collisions = max([len(w.collisions) for w in self.worlds])
+    def mu(self, num_colls=None):
+        # max_collisions = max([len(w.collisions) for w in self.worlds])
         mus = []
         for w in self.worlds:
-            if w.collisions:
+            if num_colls is None or len(w.collisions) == num_colls:
                 mus.append(w.mu().unsqueeze(0))
-            else:
-                mus.append(Variable(w._M.data.new(1, max_collisions,
-                    max_collisions).zero_()))
+            # else:
+            #     mus.append(Variable(w._M.data.new(1, max_collisions,
+            #         max_collisions).zero_()))
         mu = torch.cat(mus, dim=0)
         return mu
 
-    def E(self):
-        max_collisions = max([len(w.collisions) for w in self.worlds])
+    def E(self, num_colls=None):
+        # max_collisions = max([len(w.collisions) for w in self.worlds])
         Es = []
         for w in self.worlds:
-            if w.collisions:
+            if num_colls is None or len(w.collisions) == num_colls:
                 Es.append(w.E().unsqueeze(0))
-            else:
-                Es.append(Variable(w._M.data.new(1, 2 * max_collisions,
-                    max_collisions).zero_()))
+            # else:
+            #     Es.append(Variable(w._M.data.new(1, 2 * max_collisions,
+            #         max_collisions).zero_()))
         E = torch.cat(Es, dim=0)
         return E
 
@@ -406,6 +449,7 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
         screen = None
 
     if screen is not None:
+        import pygame
         background = pygame.Surface(screen.get_size())
         background = background.convert()
         background.fill((255, 255, 255))

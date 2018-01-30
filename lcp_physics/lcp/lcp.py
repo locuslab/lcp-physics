@@ -12,7 +12,6 @@ class LCPSolvers(Enum):
 
 
 class LCPFunction(Function):
-
     def __init__(self, eps=1e-12, verbose=-1, notImprovedLim=3,
                  maxIter=10, solver=LCPSolvers.PDIPM_BATCHED):
         super().__init__()
@@ -66,12 +65,11 @@ class LCPFunction(Function):
         b, b_e = expandParam(b, nBatch, 2)
         F, F_e = expandParam(F, nBatch, 3)
 
-        # neq, nineq, nz = self.neq, self.nineq, self.nz
-        neq, nineq = self.neq, self.nineq
+        neq, nineq, nz = self.neq, self.nineq, self.nz
 
         # D = torch.diag((self.lams / self.slacks).squeeze(0)).unsqueeze(0)
         d = self.lams / self.slacks
-        # XXX
+
         pdipm_b.factor_kkt(self.S_LU, self.R, d)
         dx, _, dlam, dnu = pdipm_b.solve_kkt(self.Q_LU, d, G, A, self.S_LU,
             dl_dzhat, torch.zeros(nBatch, nineq).type_as(G),
