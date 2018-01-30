@@ -16,7 +16,7 @@ Tensor = Params.TENSOR_TYPE
 
 
 class World:
-    def __init__(self, bodies, joints, dt=Params.DEFAULT_DT, engine=Params.DEFAULT_ENGINE,
+    def __init__(self, bodies, joints=[], dt=Params.DEFAULT_DT, engine=Params.DEFAULT_ENGINE,
                  collision_callback=Params.DEFAULT_COLLISION, eps=Params.DEFAULT_EPSILON,
                  parallel_eps=Params.DEFAULT_PAR_EPS, fric_dirs=Params.DEFAULT_FRIC_DIRS,
                  post_stab=Params.POST_STABILIZATION):
