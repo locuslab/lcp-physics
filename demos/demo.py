@@ -33,11 +33,9 @@ def debug_demo(screen):
         # else:
         #     c.add_force(ExternalForce(neg_gravity, multiplier=100))
         bodies.append(c)
-    joints.append(XConstraint(bodies[-1], bodies[-1].pos.data))
-    joints.append(YConstraint(bodies[-1], bodies[-1].pos.data))
-    # joints.append(Joint(bodies[-1], None, [290, 240]))
-    # joints.append(Joint(bodies[-1], None, [310, 240]))
-    # joints.append(Joint(bodies[-1], None, [300, 240]))
+    joints.append(XConstraint(bodies[-1]))
+    joints.append(YConstraint(bodies[-1]))
+    # joints.append(Joint(bodies[-1], None, bodies[-1].pos.data))
 
     # 2 free ball collision angled
     for i in range(1, 3):
@@ -104,14 +102,9 @@ def slide_demo(screen):
     r.move(1)
     r.v[0] = 0.
     bodies.append(r)
-    joints.append(XConstraint(r, [500, 300]))
-    joints.append(YConstraint(r, [500, 300]))
-    # joints.append(Joint(r, None, [100, 260]))
-    # joints.append(Joint(r, None, [850, 335]))
-    # joints.append(Joint(r, None, [100, 340]))
-    # joints.append(Joint(r, None, [850, 265]))
-    # joints.append(Joint(r, None, [110, 200]))
-    # joints.append(Joint(r, None, [80, 500]))
+    joints.append(XConstraint(r))
+    joints.append(YConstraint(r))
+    # joints.append(Joint(r, None, r.pos.data))
 
     # r = Circle([100, 100], 30)
     r = Rect([100, 100], [60, 60])

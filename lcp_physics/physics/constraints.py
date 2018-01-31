@@ -54,9 +54,9 @@ class Joint:
 
 
 class YConstraint:
-    def __init__(self, body1, pos):
+    def __init__(self, body1):
         self.body1 = body1
-        self.pos = Variable(Tensor(pos))
+        self.pos = body1.pos
         self.pos1 = self.pos - self.body1.pos
         self.r1, self.rot1 = cart_to_polar(self.pos1)
 
@@ -85,9 +85,9 @@ class YConstraint:
 
 
 class XConstraint:
-    def __init__(self, body1, pos):
+    def __init__(self, body1):
         self.body1 = body1
-        self.pos = Variable(Tensor(pos))
+        self.pos = body1.pos
         self.pos1 = self.pos - self.body1.pos
         self.r1, self.rot1 = cart_to_polar(self.pos1)
 
