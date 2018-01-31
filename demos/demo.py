@@ -4,7 +4,7 @@ import sys
 import pygame
 
 from lcp_physics.physics.bodies import Circle, Rect
-from lcp_physics.physics.constraints import Joint
+from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint
 from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params
 from lcp_physics.physics.world import World, BatchWorld, run_world
@@ -25,7 +25,7 @@ def debug_demo(screen):
         bodies.append(c)
     joints.append(Joint(bodies[-1], None, [140, 220]))
 
-    # Ball bouncing on body fixed in place by 2 joints
+    # Ball bouncing on body fixed in place
     for i in range(1, 3):
         c = Circle([300 + 1 * (i - 1), 150 + 80 * (i - 1)], 20)
         if i == 1:
@@ -33,8 +33,10 @@ def debug_demo(screen):
         # else:
         #     c.add_force(ExternalForce(neg_gravity, multiplier=100))
         bodies.append(c)
-    joints.append(Joint(bodies[-1], None, [290, 240]))
-    joints.append(Joint(bodies[-1], None, [310, 240]))
+    joints.append(XConstraint(bodies[-1], bodies[-1].pos.data))
+    joints.append(YConstraint(bodies[-1], bodies[-1].pos.data))
+    # joints.append(Joint(bodies[-1], None, [290, 240]))
+    # joints.append(Joint(bodies[-1], None, [310, 240]))
     # joints.append(Joint(bodies[-1], None, [300, 240]))
 
     # 2 free ball collision angled
@@ -102,8 +104,10 @@ def slide_demo(screen):
     r.move(1)
     r.v[0] = 0.
     bodies.append(r)
-    joints.append(Joint(r, None, [100, 260]))
-    joints.append(Joint(r, None, [850, 335]))
+    joints.append(XConstraint(r, [500, 300]))
+    joints.append(YConstraint(r, [500, 300]))
+    # joints.append(Joint(r, None, [100, 260]))
+    # joints.append(Joint(r, None, [850, 335]))
     # joints.append(Joint(r, None, [100, 340]))
     # joints.append(Joint(r, None, [850, 265]))
     # joints.append(Joint(r, None, [110, 200]))

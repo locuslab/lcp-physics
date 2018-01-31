@@ -68,6 +68,38 @@ class YConstraint:
                        Variable(Tensor([0, 1])).type_as(self.pos.data).unsqueeze(1)],
                       dim=1)
         # TODO Modify world.Je(). Hacky for now, duplicated so that shapes match
+        # Or are two identical rows needed? Check equations
+        return J, J
+
+    def move(self, dt):
+        self.rot1 = self.rot1 + self.body1.v[0] * dt
+        self.update_pos()
+
+    def update_pos(self):
+        self.pos1 = polar_to_cart(self.r1, self.rot1)
+        self.pos = self.body1.pos + self.pos1
+
+    def draw(self, screen):
+        return [pygame.draw.circle(screen, (0, 255, 0),
+                                   self.pos.data.numpy().astype(int), 1)]
+
+
+class XConstraint:
+    def __init__(self, body1, pos):
+        self.body1 = body1
+        self.pos = Variable(Tensor(pos))
+        self.pos1 = self.pos - self.body1.pos
+        self.r1, self.rot1 = cart_to_polar(self.pos1)
+
+        self.body2 = self.rot2 = None
+
+    def J(self):
+        J = torch.cat([Variable(Tensor([1, 0])).type_as(self.pos.data).unsqueeze(1),
+                       Variable(Tensor([0, 1])).type_as(self.pos.data).unsqueeze(1),
+                       torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1)],
+                      dim=1)
+        # TODO Modify world.Je(). Hacky for now, duplicated so that shapes match
+        # Or are two identical rows needed? Check equations
         return J, J
 
     def move(self, dt):
