@@ -54,7 +54,7 @@ class PdipmEngine(Engine):
                 except RuntimeError:  # XXX
                     # print('\nRegularizing singular matrix.\n')
                     x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0),
-                            P.size(1)).type_as(P.data) * 1e-7)), u)
+                            P.size(1)).type_as(P.data) * 1e-10)), u)
             else:
                 x = torch.matmul(world.invM(), u)  # Eq. 2.41
         else:

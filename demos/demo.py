@@ -4,7 +4,7 @@ import sys
 import pygame
 
 from lcp_physics.physics.bodies import Circle, Rect
-from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint
+from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint, RotConstraint
 from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params
 from lcp_physics.physics.world import World, BatchWorld, run_world
@@ -33,9 +33,9 @@ def debug_demo(screen):
         # else:
         #     c.add_force(ExternalForce(neg_gravity, multiplier=100))
         bodies.append(c)
+    joints.append(RotConstraint(bodies[-1]))
     joints.append(XConstraint(bodies[-1]))
     joints.append(YConstraint(bodies[-1]))
-    # joints.append(Joint(bodies[-1], None, bodies[-1].pos.data))
 
     # 2 free ball collision angled
     for i in range(1, 3):
@@ -74,7 +74,8 @@ def chain_demo(screen):
     # make chain of rectangles
     r = Rect([300, 50], [20, 60])
     bodies.append(r)
-    joints.append(Joint(r, None, [300, 30]))
+    joints.append(XConstraint(r))
+    joints.append(YConstraint(r))
     for i in range(1, 10):
         r = Rect([300, 50 + 50 * i], [20, 60])
         bodies.append(r)
@@ -104,7 +105,7 @@ def slide_demo(screen):
     bodies.append(r)
     joints.append(XConstraint(r))
     joints.append(YConstraint(r))
-    # joints.append(Joint(r, None, r.pos.data))
+    joints.append(RotConstraint(r))
 
     # r = Circle([100, 100], 30)
     r = Rect([100, 100], [60, 60])
@@ -156,10 +157,12 @@ def fric_demo(screen):
 
     c = Circle([50, 436], 30, restitution=restitution)
     bodies.append(c)
-    joints.append(Joint(c, None, [50, 436]))
+    joints.append(XConstraint(c))
+    joints.append(YConstraint(c))
     c = Circle([800, 436], 30, restitution=restitution)
     bodies.append(c)
-    joints.append(Joint(c, None, [800, 436]))
+    joints.append(XConstraint(c))
+    joints.append(YConstraint(c))
 
     recorder = None
     # recorder = Recorder(DT, screen)

@@ -41,12 +41,14 @@ class World:
             b.geom.body = i
             self.space.add(b.geom)
 
+        self.num_constraints = 0
         self.joints = []
         for j in joints:
             b1, b2 = j.body1, j.body2
             i1 = bodies.index(b1)
             i2 = bodies.index(b2) if b2 else None
             self.joints.append((j, i1, i2))
+            self.num_constraints += j.num_constraints
 
         M_size = bodies[0].M.size(0)
         self._M = Variable(Tensor(M_size * len(bodies), M_size * len(bodies)).zero_())
@@ -131,17 +133,19 @@ class World:
         return self._invM
 
     def Je(self):
-        Je = Variable(Tensor(DIM * len(self.joints),
+        Je = Variable(Tensor(self.num_constraints,
                              self.vec_len * len(self.bodies)).zero_())
-        for i, joint in enumerate(self.joints):
+        row = 0
+        for joint in self.joints:
             J1, J2 = joint[0].J()
             i1 = joint[1]
             i2 = joint[2]
-            Je[i * DIM:(i + 1) * DIM,
+            Je[row:row + J1.size(0),
                i1 * self.vec_len:(i1 + 1) * self.vec_len] = J1
-            if i2 is not None:
-                Je[i * DIM:(i + 1) * DIM,
+            if J2 is not None:
+                Je[row:row + J2.size(0),
                    i2 * self.vec_len:(i2 + 1) * self.vec_len] = J2
+            row += J1.size(0)
         return Je
 
     def Jc(self):

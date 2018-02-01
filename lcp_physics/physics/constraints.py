@@ -15,6 +15,7 @@ Tensor = Params.TENSOR_TYPE
 
 class Joint:
     def __init__(self, body1, body2, pos):
+        self.num_constraints = 2
         self.body1 = body1
         self.body2 = body2
         self.pos = Variable(Tensor(pos))
@@ -28,11 +29,10 @@ class Joint:
     def J(self):
         J1 = torch.cat([torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1),
                         Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
+        J2 = None
         if self.body2 is not None:
             J2 = torch.cat([torch.cat([self.pos2[Y], -self.pos2[X]]).unsqueeze(1),
                             -Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
-        else:
-            J2 = Variable(Tensor(DIM, DIM + 1).zero_())
         return J1, J2
 
     def move(self, dt):
@@ -55,6 +55,7 @@ class Joint:
 
 class YConstraint:
     def __init__(self, body1):
+        self.num_constraints = 1
         self.body1 = body1
         self.pos = body1.pos
         self.pos1 = self.pos - self.body1.pos
@@ -63,13 +64,15 @@ class YConstraint:
         self.body2 = self.rot2 = None
 
     def J(self):
-        J = torch.cat([Variable(Tensor([1, 0])).type_as(self.pos.data).unsqueeze(1),
-                       torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1),
-                       Variable(Tensor([0, 1])).type_as(self.pos.data).unsqueeze(1)],
+        J = torch.cat([Variable(Tensor([0])).type_as(self.pos.data).unsqueeze(1),
+                       # torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1),
+                       Variable(Tensor([0])).type_as(self.pos.data).unsqueeze(1),
+                       Variable(Tensor([1])).type_as(self.pos.data).unsqueeze(1),
+                       ],
                       dim=1)
         # TODO Modify world.Je(). Hacky for now, duplicated so that shapes match
         # Or are two identical rows needed? Check equations
-        return J, J
+        return J, None
 
     def move(self, dt):
         self.rot1 = self.rot1 + self.body1.v[0] * dt
@@ -86,6 +89,7 @@ class YConstraint:
 
 class XConstraint:
     def __init__(self, body1):
+        self.num_constraints = 1
         self.body1 = body1
         self.pos = body1.pos
         self.pos1 = self.pos - self.body1.pos
@@ -94,13 +98,49 @@ class XConstraint:
         self.body2 = self.rot2 = None
 
     def J(self):
-        J = torch.cat([Variable(Tensor([1, 0])).type_as(self.pos.data).unsqueeze(1),
-                       Variable(Tensor([0, 1])).type_as(self.pos.data).unsqueeze(1),
-                       torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1)],
+        J = torch.cat([Variable(Tensor([0])).type_as(self.pos.data).unsqueeze(1),
+                       Variable(Tensor([1])).type_as(self.pos.data).unsqueeze(1),
+                       Variable(Tensor([0])).type_as(self.pos.data).unsqueeze(1),
+                       # torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1)
+                       ],
                       dim=1)
         # TODO Modify world.Je(). Hacky for now, duplicated so that shapes match
         # Or are two identical rows needed? Check equations
-        return J, J
+        return J, None
+
+    def move(self, dt):
+        self.rot1 = self.rot1 + self.body1.v[0] * dt
+        self.update_pos()
+
+    def update_pos(self):
+        self.pos1 = polar_to_cart(self.r1, self.rot1)
+        self.pos = self.body1.pos + self.pos1
+
+    def draw(self, screen):
+        return [pygame.draw.circle(screen, (0, 255, 0),
+                                   self.pos.data.numpy().astype(int), 1)]
+
+
+class RotConstraint:
+    def __init__(self, body1):
+        self.num_constraints = 1
+        self.body1 = body1
+        self.pos = body1.pos
+        self.pos1 = self.pos - self.body1.pos
+        self.r1, self.rot1 = cart_to_polar(self.pos1)
+
+        self.body2 = self.rot2 = None
+
+    def J(self):
+        J = torch.cat([Variable(Tensor([1])).type_as(self.pos.data).unsqueeze(1),
+                       Variable(Tensor([0])).type_as(self.pos.data).unsqueeze(1),
+                       Variable(Tensor([0])).type_as(self.pos.data).unsqueeze(1),
+                       # torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1)
+                       ],
+                      dim=1)
+        # TODO Modify world.Je(). Hacky for now, duplicated so that shapes match
+        # Or are two identical rows needed? Check equations
+        return J, None
 
     def move(self, dt):
         self.rot1 = self.rot1 + self.body1.v[0] * dt
