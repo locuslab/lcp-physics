@@ -1,6 +1,6 @@
 from torch.autograd import Variable
 
-from .utils import Params
+from .utils import Params, wrap_variable
 
 
 Tensor = Params.TENSOR_TYPE
@@ -39,5 +39,5 @@ class ExternalForce:
     ZEROS = Variable(Tensor([0, 0, 0]))
 
     def __init__(self, force_func=gravity, multiplier=100.):
-        self.multiplier = multiplier
+        self.multiplier = wrap_variable(multiplier)
         self.force = lambda t: force_func(t) * self.multiplier

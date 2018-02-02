@@ -1,5 +1,5 @@
-import math
 import os
+import math
 
 import pygame
 
@@ -93,6 +93,14 @@ def binverse(x):
     for i in range(len(x)):
         ret[i] = torch.inverse(x[i])
     return ret
+
+
+def wrap_variable(x, *args, **kwargs):
+    """Wrap array or scalar in Variable, if not already.
+    """
+    x = x if hasattr(x, '__len__') else [x]  # check if x is scalar
+    return x if isinstance(x, Variable) \
+        else Variable(Params.TENSOR_TYPE(x), *args, **kwargs)
 
 
 def plot(y_axis, x_axis=None):

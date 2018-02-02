@@ -7,7 +7,7 @@ import pygame
 import torch
 from torch.autograd import Variable
 
-from .utils import Indices, Params, polar_to_cart, cart_to_polar
+from .utils import Indices, Params, wrap_variable, polar_to_cart, cart_to_polar
 
 X = Indices.X
 Y = Indices.Y
@@ -17,11 +17,12 @@ Tensor = Params.TENSOR_TYPE
 
 
 class Body(object):
-    def __init__(self, pos, mass=Variable(Tensor([1])), restitution=Params.DEFAULT_RESTITUTION,
-                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON, col=(255, 0, 0), thickness=1):
+    def __init__(self, pos, mass=1, restitution=Params.DEFAULT_RESTITUTION,
+                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
+                 col=(255, 0, 0), thickness=1):
         self.eps = Variable(Tensor([eps]))
         # rotation & position vector
-        self.p = torch.cat([Variable(Tensor(1).zero_()), Variable(Tensor(pos))])
+        self.p = torch.cat([Variable(Tensor(1).zero_()), wrap_variable(pos)])
         self.rot = self.p[0:1]
         self.pos = self.p[1:]
 
@@ -30,7 +31,7 @@ class Body(object):
         ang_vel = Variable(Tensor([0]))
         self.v = torch.cat([ang_vel, lin_vel])
 
-        self.mass = mass
+        self.mass = wrap_variable(mass)
         self.ang_inertia = self._get_ang_inertia(self.mass)
         # M can change if object rotates, not the case for now
         self.M = Variable(Tensor(len(self.v), len(self.v)).zero_())
@@ -38,8 +39,8 @@ class Body(object):
         self.M[:s[0], :s[1]] = self.ang_inertia
         self.M[s[0]:, s[1]:] = Variable(torch.eye(DIM).type_as(self.M.data)) * self.mass
 
-        self.fric_coeff = Variable(Tensor([fric_coeff]), requires_grad=True)  # XXX
-        self.restitution = Variable(Tensor([restitution]))
+        self.fric_coeff = wrap_variable(fric_coeff)
+        self.restitution = wrap_variable(restitution)
         self.forces = []
 
         self.col = col
@@ -88,9 +89,10 @@ class Body(object):
 
 
 class Rect(Body):
-    def __init__(self, pos, dims, mass=Variable(Tensor([1])), restitution=Params.DEFAULT_RESTITUTION,
-                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON, col=(255, 0, 0), thickness=1):
-        self.dims = Variable(Tensor(dims))
+    def __init__(self, pos, dims, mass=1, restitution=Params.DEFAULT_RESTITUTION,
+                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
+                 col=(255, 0, 0), thickness=1):
+        self.dims = wrap_variable(dims)
         super().__init__(pos, mass=mass, restitution=restitution, fric_coeff=fric_coeff,
                          eps=eps, col=col, thickness=thickness)
 
@@ -129,11 +131,12 @@ class Rect(Body):
 
 
 class Circle(Body):
-    def __init__(self, pos, rad, mass=Variable(Tensor([1])), restitution=Params.DEFAULT_RESTITUTION,
-                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON, col=(255, 0, 0), thickness=1):
-        self.rad = Variable(Tensor([rad]))
+    def __init__(self, pos, rad, mass=1, restitution=Params.DEFAULT_RESTITUTION,
+                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
+                 col=(255, 0, 0), thickness=1):
+        self.rad = wrap_variable(rad)
         super().__init__(pos, mass=mass, restitution=restitution, fric_coeff=fric_coeff,
-                                     eps=eps, col=col, thickness=thickness)
+                         eps=eps, col=col, thickness=thickness)
 
     def _get_ang_inertia(self, mass):
         return mass * self.rad * self.rad / 2
