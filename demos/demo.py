@@ -4,7 +4,7 @@ import sys
 import pygame
 
 from lcp_physics.physics.bodies import Circle, Rect
-from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint, RotConstraint
+from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint, RotConstraint, TotalConstraint
 from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params
 from lcp_physics.physics.world import World, BatchWorld, run_world
@@ -33,9 +33,7 @@ def debug_demo(screen):
         # else:
         #     c.add_force(ExternalForce(neg_gravity, multiplier=100))
         bodies.append(c)
-    joints.append(RotConstraint(bodies[-1]))
-    joints.append(XConstraint(bodies[-1]))
-    joints.append(YConstraint(bodies[-1]))
+    joints.append(TotalConstraint(bodies[-1]))
 
     # 2 free ball collision angled
     for i in range(1, 3):
@@ -90,7 +88,7 @@ def chain_demo(screen):
 
     recorder = None
     # recorder = Recorder(DT, screen)
-    world = World(bodies, joints, dt=DT)
+    world = World(bodies, joints, dt=DT / 10)
     run_world(world, run_time=TIME * 2, screen=screen, recorder=recorder)
 
 
@@ -103,9 +101,7 @@ def slide_demo(screen):
     r.move(1)
     r.v[0] = 0.
     bodies.append(r)
-    joints.append(XConstraint(r))
-    joints.append(YConstraint(r))
-    joints.append(RotConstraint(r))
+    joints.append(TotalConstraint(r))
 
     # r = Circle([100, 100], 30)
     r = Rect([100, 100], [60, 60])
@@ -137,6 +133,8 @@ def slide_demo(screen):
 
 def fric_demo(screen):
     restitution = 0.75
+    fric_coeff = 1
+
     bodies = []
     joints = []
 
@@ -146,20 +144,20 @@ def fric_demo(screen):
         else:
             return ExternalForce.ZEROS
 
-    r = Rect([400, 400], [900, 10], restitution=restitution)
+    r = Rect([400, 400], [900, 10], restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(r)
     r.add_force(ExternalForce(timed_force, multiplier=100))
     r.add_force(ExternalForce(gravity, multiplier=100))
 
-    c = Circle([200, 364], 30, restitution=restitution)
+    c = Circle([200, 364], 30, restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(c)
     c.add_force(ExternalForce(gravity, multiplier=100))
 
-    c = Circle([50, 436], 30, restitution=restitution)
+    c = Circle([50, 436], 30, restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(c)
     joints.append(XConstraint(c))
     joints.append(YConstraint(c))
-    c = Circle([800, 436], 30, restitution=restitution)
+    c = Circle([800, 436], 30, restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(c)
     joints.append(XConstraint(c))
     joints.append(YConstraint(c))

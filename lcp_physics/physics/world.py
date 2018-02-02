@@ -9,6 +9,7 @@ import lcp_physics.physics.engines as engines_module
 import lcp_physics.physics.collisions as collisions_module
 from .utils import Indices, Params, cross_2d, get_instance
 
+
 X, Y = Indices.X, Indices.Y
 DIM = Params.DIM
 
@@ -60,7 +61,8 @@ class World:
         except RuntimeError:  # XXX
             print('Regularizing singular matrix.')
             # XXX Use expand below?
-            reg = Variable(torch.eye(M_.size(0), M_.size(1)).type_as(M_.data) * 1e-7)
+            reg = Variable(torch.eye(self._M.size(0), self._M.size(1))
+                           .type_as(self._M.data) * 1e-10)
             self._invM = torch.inverse(self.M_ + reg)
 
         self.set_v(torch.cat([b.v for b in bodies]))
