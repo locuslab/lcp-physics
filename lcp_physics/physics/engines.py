@@ -52,7 +52,7 @@ class PdipmEngine(Engine):
                 try:
                     x = torch.matmul(torch.inverse(P), u)  # Eq. 2.41
                 except RuntimeError:  # XXX
-                    # print('\nRegularizing singular matrix.\n')
+                    print('\nRegularizing singular matrix.\n')
                     x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0),
                             P.size(1)).type_as(P.data) * 1e-10)), u)
             else:
@@ -60,7 +60,7 @@ class PdipmEngine(Engine):
         else:
             # Solve Mixed LCP (Kline 2.7.2)
             # TODO Organize
-            Jc = world.Jc() #/ 2  # / 2 correction is needed for some reason
+            Jc = world.Jc()
             v = torch.matmul(Jc, world.get_v() * world.restitutions)
             TM = world.M().unsqueeze(0)
             if neq > 0:
@@ -100,10 +100,11 @@ class PdipmEngine(Engine):
         # Post-stabilization
         if stabilization:
             ge = torch.matmul(Je, new_v)
+            gc = None
             if Jc is not None:
                 gc = torch.matmul(Jc, new_v) + torch.matmul(Jc, new_v * -world.restitutions)
             dp = self.post_stabilization(world.M(), Je, Jc, ge, gc)
-            new_v = (new_v - dp).squeeze(0)  # XXX Is sign correct?
+            new_v = (new_v - dp).squeeze(0)
         return new_v
 
     def post_stabilization(self, M, Je, Jc, ge, gc):
