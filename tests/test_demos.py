@@ -5,7 +5,7 @@ import torch
 from torch.autograd import Variable
 
 from lcp_physics.physics.bodies import Circle, Rect
-from lcp_physics.physics.constraints import Joint
+from lcp_physics.physics.constraints import Joint, TotalConstraint, XConstraint, YConstraint
 from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params
 from lcp_physics.physics.world import World, run_world
@@ -20,6 +20,7 @@ class TestDemos(unittest.TestCase):
         # Run without displaying
         self.screen = None
         # Run with display
+        # import pygame
         # pygame.init()
         # width, height = 1000, 600
         # self.screen = pygame.display.set_mode((width, height), pygame.DOUBLEBUF)
@@ -37,17 +38,13 @@ class TestDemos(unittest.TestCase):
             bodies.append(c)
         joints.append(Joint(bodies[-1], None, [140, 220]))
 
-        # Ball bouncing on body fixed in place by 2 joints
+        # Ball bouncing on body fixed in place
         for i in range(1, 3):
             c = Circle([300 + 1 * (i - 1), 150 + 80 * (i - 1)], 20)
             if i == 1:
                 c.add_force(ExternalForce(gravity, multiplier=100))
-            # else:
-            #     c.add_force(ExternalForce(neg_gravity, multiplier=100))
             bodies.append(c)
-        joints.append(Joint(bodies[-1], None, [290, 240]))
-        joints.append(Joint(bodies[-1], None, [310, 240]))
-        # joints.append(Joint(bodies[-1], None, [300, 240]))
+        joints.append(TotalConstraint(bodies[-1]))
 
         # 2 free ball collision angled
         for i in range(1, 3):
@@ -85,7 +82,8 @@ class TestDemos(unittest.TestCase):
         # make chain of rectangles
         r = Rect([300, 50], [20, 60])
         bodies.append(r)
-        joints.append(Joint(r, None, [300, 30]))
+        joints.append(XConstraint(r))
+        joints.append(YConstraint(r))
         for i in range(1, 10):
             r = Rect([300, 50 + 50 * i], [20, 60])
             bodies.append(r)
@@ -112,12 +110,7 @@ class TestDemos(unittest.TestCase):
         r.move(1)
         r.v[0] = 0.
         bodies.append(r)
-        joints.append(Joint(r, None, [100, 260]))
-        joints.append(Joint(r, None, [850, 335]))
-        # joints.append(Joint(r, None, [100, 340]))
-        # joints.append(Joint(r, None, [850, 265]))
-        # joints.append(Joint(r, None, [110, 200]))
-        # joints.append(Joint(r, None, [80, 500]))
+        joints.append(TotalConstraint(r))
 
         r = Rect([100, 100], [1000, 20])
         r = Rect([100, 100], [60, 60])
@@ -167,10 +160,12 @@ class TestDemos(unittest.TestCase):
 
         c = Circle([50, 436], 30)
         bodies.append(c)
-        joints.append(Joint(c, None, [50, 436]))
+        joints.append(XConstraint(c))
+        joints.append(YConstraint(c))
         c = Circle([800, 436], 30)
         bodies.append(c)
-        joints.append(Joint(c, None, [800, 436]))
+        joints.append(XConstraint(c))
+        joints.append(YConstraint(c))
 
         recorder = None
         # recorder = Recorder(DT, self.screen)
@@ -192,7 +187,6 @@ class TestDemos(unittest.TestCase):
 
             c2 = Circle([400, 250], 30)
             bodies.append(c2)
-            # joints.append(Joint(c2, None, [500, 275]))
             c2.add_no_collision(target)
 
             world = World(bodies, joints, dt=DT)
@@ -259,7 +253,8 @@ class TestDemos(unittest.TestCase):
             # make chain of rectangles
             r = Rect([300, 50], [20, 60])
             bodies.append(r)
-            joints.append(Joint(r, None, [300, 30]))
+            joints.append(XConstraint(r))
+            joints.append(YConstraint(r))
             for i in range(1, 10):
                 if i < 9:
                     r = Rect([300, 50 + 50 * i], [20, 60])

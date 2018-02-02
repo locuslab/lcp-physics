@@ -172,10 +172,11 @@ class PdipmEngine(Engine):
             x_idx = colls_idx.unsqueeze(1).expand(x.size(0), x.size(1))
 
             M = world.M(num_colls=i)
+            batch_size = M.size(0)
             u = u_[colls_idx.unsqueeze(1).expand(colls_idx.size(0), u_.size(1))].view(torch.sum(colls_idx), -1)
             Je = world.Je(num_colls=i)
             neq = Je.size(1) if Je.dim() > 0 else 0
-            Jc = world.Jc(num_colls=i) #/ 2  # / 2 correction is needed for some reason
+            Jc = world.Jc(num_colls=i)
             v = torch.bmm(Jc, (world.get_v(num_colls=i) * world.restitutions(num_colls=i)).unsqueeze(2)).squeeze(2)
             if neq > 0:
                 b = Variable(Tensor(batch_size, Je.size(1)).zero_())
