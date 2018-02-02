@@ -44,7 +44,7 @@ class World:
 
         self.num_constraints = 0
         self.joints = []
-        for j in joints:
+        for j in constraints:
             b1, b2 = j.body1, j.body2
             i1 = bodies.index(b1)
             i2 = bodies.index(b2) if b2 else None
@@ -253,7 +253,7 @@ class BatchWorld:
 
         self.worlds = []
         for i in range(len(bodies)):
-            w = World(bodies[i], joints[i], dt=dt, engine=engine,
+            w = World(bodies[i], constraints[i], dt=dt, engine=engine,
                       collision_callback=collision_callback, eps=eps,
                       parallel_eps=parallel_eps, fric_dirs=fric_dirs,
                       post_stab=post_stab)
