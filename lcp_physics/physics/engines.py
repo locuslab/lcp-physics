@@ -31,6 +31,7 @@ class Engine:
 class PdipmEngine(Engine):
     def __init__(self):
         self.lcp_solver = LCPFunction
+        self.cached_inverse = None
 
     def solve_dynamics(self, world, dt, stabilization=False):
         t = world.t
@@ -49,14 +50,20 @@ class PdipmEngine(Engine):
                 P = torch.cat([torch.cat([world.M(), -Je.t()], dim=1),
                                torch.cat([Je, Variable(Tensor(neq, neq).zero_())],
                                          dim=1)])
-                try:
-                    x = torch.matmul(torch.inverse(P), u)  # Eq. 2.41
-                except RuntimeError:  # XXX
-                    print('\nRegularizing singular matrix.\n')
-                    x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0),
-                            P.size(1)).type_as(P.data) * 1e-10)), u)
             else:
-                x = torch.matmul(world.invM(), u)  # Eq. 2.41
+                P = world.M()
+            if self.cached_inverse is None:
+                inv = torch.inverse(P)
+                if world.static_inverse:
+                    self.cached_inverse = torch.inverse(P)
+            else:
+                inv = self.cached_inverse
+            # try:
+            x = torch.matmul(inv, u)  # Eq. 2.41
+            # except RuntimeError:  # XXX
+            #     print('\nRegularizing singular matrix.\n')
+            #     x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0),
+            #             P.size(1)).type_as(P.data) * 1e-10)), u)
         else:
             # Solve Mixed LCP (Kline 2.7.2)
             # TODO Organize
@@ -110,14 +117,22 @@ class PdipmEngine(Engine):
     def post_stabilization(self, M, Je, Jc, ge, gc):
         u = torch.cat([Variable(Tensor(Je.size(1)).zero_()), ge])
         if Jc is None:
-            P = torch.cat([torch.cat([M, Je.t()], dim=1),
-                           torch.cat([Je, Variable(Tensor(Je.size(0), Je.size(0)).zero_())],
-                                     dim=1)])
-            try:
-                x = torch.matmul(torch.inverse(P), u)
-            except RuntimeError:  # XXX
-                print('\nRegularizing singular matrix in stabilization.\n')
-                x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0), P.size(1)).type_as(P.data) * 1e-10)), u)
+            neq = Je.size(0) if Je.ndimension() > 0 else 0
+            if neq > 0:
+                P = torch.cat([torch.cat([M, -Je.t()], dim=1),
+                               torch.cat([Je, Variable(Tensor(neq, neq).zero_())],
+                                         dim=1)])
+            else:
+                P = M
+            if self.cached_inverse is None:
+                inv = torch.inverse(P)
+            else:
+                inv = self.cached_inverse
+            # try:
+            x = torch.matmul(inv, u)
+            # except RuntimeError:  # XXX
+            #     print('\nRegularizing singular matrix in stabilization.\n')
+            #     x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0), P.size(1)).type_as(P.data) * 1e-10)), u)
         else:
             v = gc
             TM = M.unsqueeze(0)

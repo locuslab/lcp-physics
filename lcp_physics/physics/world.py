@@ -7,6 +7,7 @@ from torch.autograd import Variable
 
 import lcp_physics.physics.engines as engines_module
 import lcp_physics.physics.collisions as collisions_module
+from lcp_physics.physics.constraints import Joint
 from .utils import Indices, Params, cross_2d, get_instance
 
 
@@ -42,6 +43,7 @@ class World:
             b.geom.body = i
             self.space.add(b.geom)
 
+        self.static_inverse = True
         self.num_constraints = 0
         self.joints = []
         for j in constraints:
@@ -50,20 +52,14 @@ class World:
             i2 = bodies.index(b2) if b2 else None
             self.joints.append((j, i1, i2))
             self.num_constraints += j.num_constraints
+            if isinstance(j, Joint):
+                self.static_inverse = False
 
         M_size = bodies[0].M.size(0)
         self._M = Variable(Tensor(M_size * len(bodies), M_size * len(bodies)).zero_())
         # TODO Better way for diagonal block matrix?
         for i, b in enumerate(bodies):
             self._M[i * M_size:(i + 1) * M_size, i * M_size:(i + 1) * M_size] = b.M
-        try:
-            self._invM = torch.inverse(self._M)
-        except RuntimeError:  # XXX
-            print('Regularizing singular matrix.')
-            # XXX Use expand below?
-            reg = Variable(torch.eye(self._M.size(0), self._M.size(1))
-                           .type_as(self._M.data) * 1e-10)
-            self._invM = torch.inverse(self.M_ + reg)
 
         self.set_v(torch.cat([b.v for b in bodies]))
 
@@ -130,9 +126,6 @@ class World:
 
     def M(self):
         return self._M
-
-    def invM(self):
-        return self._invM
 
     def Je(self):
         Je = Variable(Tensor(self.num_constraints,
