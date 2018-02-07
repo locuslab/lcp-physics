@@ -112,7 +112,6 @@ class TestDemos(unittest.TestCase):
         bodies.append(r)
         joints.append(TotalConstraint(r))
 
-        r = Rect([100, 100], [1000, 20])
         r = Rect([100, 100], [60, 60])
         r.v[0] = -math.pi / 8 * 0
         r.move(1)

@@ -1,6 +1,7 @@
 build
 dist
 videos
+experiments
 *.egg-info
 *.pyc
 *.pkl
