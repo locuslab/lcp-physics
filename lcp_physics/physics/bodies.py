@@ -17,19 +17,25 @@ Tensor = Params.TENSOR_TYPE
 
 
 class Body(object):
-    def __init__(self, pos, mass=1, restitution=Params.DEFAULT_RESTITUTION,
+    def __init__(self, pos, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
                  fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
         self.eps = Variable(Tensor([eps]))
-        # rotation & position vector
-        self.p = torch.cat([Variable(Tensor(1).zero_()), wrap_variable(pos)])
+        # rotation & position vectors
+        pos = wrap_variable(pos)
+        if pos.size(0) == 2:
+            self.p = torch.cat([Variable(Tensor(1).zero_()), pos])
+        else:
+            self.p = pos
         self.rot = self.p[0:1]
         self.pos = self.p[1:]
 
         # linear and angular velocity vector
-        lin_vel = Variable(Tensor([0, 0]))
-        ang_vel = Variable(Tensor([0]))
-        self.v = torch.cat([ang_vel, lin_vel])
+        vel = wrap_variable(vel)
+        if vel.size(0) == 2:
+            self.v = torch.cat([Variable(Tensor(1).zero_()), vel])
+        else:
+            self.v = vel
 
         self.mass = wrap_variable(mass)
         self.ang_inertia = self._get_ang_inertia(self.mass)
@@ -89,12 +95,12 @@ class Body(object):
 
 
 class Rect(Body):
-    def __init__(self, pos, dims, mass=1, restitution=Params.DEFAULT_RESTITUTION,
+    def __init__(self, pos, dims, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
                  fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
         self.dims = wrap_variable(dims)
-        super().__init__(pos, mass=mass, restitution=restitution, fric_coeff=fric_coeff,
-                         eps=eps, col=col, thickness=thickness)
+        super().__init__(pos, vel=vel, mass=mass, restitution=restitution,
+                         fric_coeff=fric_coeff, eps=eps, col=col, thickness=thickness)
 
     def _get_ang_inertia(self, mass):
         return mass * torch.sum(self.dims ** 2) / 12
@@ -122,21 +128,21 @@ class Rect(Body):
         l1 = pygame.draw.line(screen, (0, 0, 255), pts[0], pts[2])
         l2 = pygame.draw.line(screen, (0, 0, 255), pts[1], pts[3])
         # draw center
-        c = pygame.draw.circle(screen, (0, 0, 255),
-                               self.pos.data.numpy().astype(int), 1)
+        # c = pygame.draw.circle(screen, (0, 0, 255),
+        #                        self.pos.data.numpy().astype(int), 2)
 
         # draw rectangle
         r = pygame.draw.polygon(screen, self.col, pts, self.thickness)
-        return [r, l1, l2, c]
+        return [r, l1, l2]
 
 
 class Circle(Body):
-    def __init__(self, pos, rad, mass=1, restitution=Params.DEFAULT_RESTITUTION,
+    def __init__(self, pos, rad, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
                  fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
         self.rad = wrap_variable(rad)
-        super().__init__(pos, mass=mass, restitution=restitution, fric_coeff=fric_coeff,
-                         eps=eps, col=col, thickness=thickness)
+        super().__init__(pos, vel=vel, mass=mass, restitution=restitution,
+                         fric_coeff=fric_coeff, eps=eps, col=col, thickness=thickness)
 
     def _get_ang_inertia(self, mass):
         return mass * self.rad * self.rad / 2

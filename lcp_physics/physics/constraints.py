@@ -1,4 +1,3 @@
-from functools import lru_cache
 import pygame
 
 import torch
@@ -51,7 +50,7 @@ class Joint:
 
     def draw(self, screen):
         return [pygame.draw.circle(screen, (0, 255, 0),
-                                   self.pos.data.numpy().astype(int), 1)]
+                                   self.pos.data.numpy().astype(int), 2)]
 
 
 class YConstraint:
@@ -77,8 +76,8 @@ class YConstraint:
         self.pos = self.body1.pos + self.pos1
 
     def draw(self, screen):
-        return [pygame.draw.circle(screen, (0, 255, 0),
-                                   self.pos.data.numpy().astype(int), 1)]
+        pos = self.pos.data.numpy().astype(int)
+        return [pygame.draw.line(screen, (0, 255, 0), pos - [5, 0], pos + [5, 0], 2)]
 
 
 class XConstraint:
@@ -104,8 +103,8 @@ class XConstraint:
         self.pos = self.body1.pos + self.pos1
 
     def draw(self, screen):
-        return [pygame.draw.circle(screen, (0, 255, 0),
-                                   self.pos.data.numpy().astype(int), 1)]
+        pos = self.pos.data.numpy().astype(int)
+        return [pygame.draw.line(screen, (0, 255, 0), pos - [0, 5], pos + [0, 5], 2)]
 
 
 class RotConstraint:
@@ -132,7 +131,8 @@ class RotConstraint:
 
     def draw(self, screen):
         return [pygame.draw.circle(screen, (0, 255, 0),
-                                   self.pos.data.numpy().astype(int), 1)]
+                                   self.pos.data.numpy().astype(int),
+                                   5, 1)]
 
 
 class TotalConstraint:
@@ -159,5 +159,7 @@ class TotalConstraint:
         self.pos = self.body1.pos + self.pos1
 
     def draw(self, screen):
-        return [pygame.draw.circle(screen, (0, 255, 0),
-                                   self.pos.data.numpy().astype(int), 1)]
+        pos = self.pos.data.numpy().astype(int)
+        return [pygame.draw.circle(screen, (0, 255, 0), pos + 1, 5, 1),
+                pygame.draw.line(screen, (0, 255, 0), pos - [5, 0], pos + [5, 0], 2),
+                pygame.draw.line(screen, (0, 255, 0), pos - [0, 5], pos + [0, 5], 2)]

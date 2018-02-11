@@ -491,8 +491,8 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
 
                 if not recorder:
                     # Don't refresh screen if recording
-                    # pygame.display.update(update_list)
-                    pygame.display.flip()  # XXX
+                    pygame.display.update(update_list)
+                    # pygame.display.flip()  # XXX
                 else:
                     recorder.record(world.t)
 

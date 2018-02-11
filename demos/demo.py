@@ -49,17 +49,9 @@ def debug_demo(screen):
             c.add_force(ExternalForce(vert_impulse, multiplier=500))
         bodies.append(c)
 
-    r = Rect([300, 500], [40, 40])
+    r = Rect([300, 500], [40, 40], vel=[-1, 0, 0])
     r.add_force(ExternalForce(gravity, multiplier=-100))
-    r.v[0] = -1
     bodies.append(r)
-
-    r = Rect([300, 50], [40, 40])
-    r.add_force(ExternalForce(gravity, multiplier=100))
-    r.v[0] = -1
-    for b in bodies:
-        b.add_no_collision(r)
-    # bodies.append(r)
 
     world = World(bodies, joints, dt=DT)
     run_world(world, run_time=10, screen=screen)
@@ -96,18 +88,13 @@ def slide_demo(screen):
     bodies = []
     joints = []
 
-    r = Rect([500, 300], [900, 10])
-    r.v[0] = math.pi / 32
-    r.move(1)
-    r.v[0] = 0.
+    inclination = math.pi / 32
+    r = Rect([math.pi / 32, 500, 300], [900, 10])
     bodies.append(r)
     joints.append(TotalConstraint(r))
 
     # r = Circle([100, 100], 30)
     r = Rect([100, 100], [60, 60])
-    # r.v[0] = -math.pi / 8
-    # r.move(1)
-    # r.v[0] = 0.
     bodies.append(r)
     r.add_force(ExternalForce(gravity, multiplier=100))
     # r.add_force(ExternalForce(vert_impulse, multiplier=1000))
