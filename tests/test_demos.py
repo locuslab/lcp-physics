@@ -244,88 +244,88 @@ class TestDemos(unittest.TestCase):
         run_world(world, run_time=TIME, screen=None, recorder=None)
         dist = (target.pos - c.pos).norm()
 
-    def testInference(self):
-        def make_world(forces, mass):
-            bodies = []
-            joints = []
-
-            # make chain of rectangles
-            r = Rect([300, 50], [20, 60])
-            bodies.append(r)
-            joints.append(XConstraint(r))
-            joints.append(YConstraint(r))
-            for i in range(1, 10):
-                if i < 9:
-                    r = Rect([300, 50 + 50 * i], [20, 60])
-                else:
-                    r = Rect([300, 50 + 50 * i], [20, 60], mass=mass)
-                bodies.append(r)
-                joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
-                bodies[-1].add_no_collision(bodies[-2])
-            bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
-
-            # make projectile
-            m = 3
-            c1 = Circle([50, 500], 20)
-            bodies.append(c1)
-            for f in forces:
-                c1.add_force(ExternalForce(f, multiplier=300 * m))
-
-            world = World(bodies, joints, dt=DT)
-            return world, r
-
-        def positions_run_world(world, dt=Params.DEFAULT_DT, run_time=10,
-                                screen=None, recorder=None):
-            positions = [torch.cat([b.p for b in world.bodies])]
-
-            while world.t < run_time:
-                world.step()
-                positions.append(torch.cat([b.p for b in world.bodies]))
-            return positions
-
-        MASS_EPS = 1e-7
-        forces = [hor_impulse]
-        ground_truth_mass = Variable(torch.DoubleTensor([7]))
-        world, c = make_world(forces, ground_truth_mass)
-
-        ground_truth_pos = positions_run_world(world, run_time=10, screen=None, recorder=None)
-        ground_truth_pos = [p.data for p in ground_truth_pos]
-        ground_truth_pos = Variable(torch.cat(ground_truth_pos))
-
-        learning_rate = 0.01
-        max_iter = 100
-
-        next_mass = Variable(torch.DoubleTensor([1.3]), requires_grad=True)
-        loss_hist = []
-        mass_hist = [next_mass]
-        last_dist = 1e10
-        for i in range(max_iter):
-            world, c = make_world(forces, next_mass)
-            # world.load_state(initial_state)
-            # world.reset_engine()
-            positions = positions_run_world(world, run_time=10, screen=None)
-            positions = torch.cat(positions)
-            positions = positions[:len(ground_truth_pos)]
-            # temp_ground_truth_pos = ground_truth_pos[:len(positions)]
-
-            loss = torch.nn.MSELoss()(positions, ground_truth_pos)
-            loss.backward()
-            grad = c.mass.grad.data
-            # clip gradient
-            grad = torch.max(torch.min(grad, torch.DoubleTensor([100])), torch.DoubleTensor([-100]))
-            temp = c.mass.data - learning_rate * grad
-            temp = max(MASS_EPS, temp[0])
-            next_mass = Variable(torch.DoubleTensor([temp]), requires_grad=True)
-            # learning_rate /= 1.1
-            if abs((last_dist - loss).data[0]) < 1e-5:
-                break
-            last_dist = loss
-            loss_hist.append(loss)
-            mass_hist.append(next_mass)
-
-        world = make_world(forces, next_mass)[0]
-        positions_run_world(world, run_time=10, screen=None, recorder=None)
-        loss = torch.nn.MSELoss()(positions, ground_truth_pos)
+    # def testInference(self):
+    #     def make_world(forces, mass):
+    #         bodies = []
+    #         joints = []
+    #
+    #         # make chain of rectangles
+    #         r = Rect([300, 50], [20, 60])
+    #         bodies.append(r)
+    #         joints.append(XConstraint(r))
+    #         joints.append(YConstraint(r))
+    #         for i in range(1, 10):
+    #             if i < 9:
+    #                 r = Rect([300, 50 + 50 * i], [20, 60])
+    #             else:
+    #                 r = Rect([300, 50 + 50 * i], [20, 60], mass=mass)
+    #             bodies.append(r)
+    #             joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
+    #             bodies[-1].add_no_collision(bodies[-2])
+    #         bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
+    #
+    #         # make projectile
+    #         m = 3
+    #         c1 = Circle([50, 500], 20)
+    #         bodies.append(c1)
+    #         for f in forces:
+    #             c1.add_force(ExternalForce(f, multiplier=300 * m))
+    #
+    #         world = World(bodies, joints, dt=DT)
+    #         return world, r
+    #
+    #     def positions_run_world(world, dt=Params.DEFAULT_DT, run_time=10,
+    #                             screen=None, recorder=None):
+    #         positions = [torch.cat([b.p for b in world.bodies])]
+    #
+    #         while world.t < run_time:
+    #             world.step()
+    #             positions.append(torch.cat([b.p for b in world.bodies]))
+    #         return positions
+    #
+    #     MASS_EPS = 1e-7
+    #     forces = [hor_impulse]
+    #     ground_truth_mass = Variable(torch.DoubleTensor([7]))
+    #     world, c = make_world(forces, ground_truth_mass)
+    #
+    #     ground_truth_pos = positions_run_world(world, run_time=10, screen=None, recorder=None)
+    #     ground_truth_pos = [p.data for p in ground_truth_pos]
+    #     ground_truth_pos = Variable(torch.cat(ground_truth_pos))
+    #
+    #     learning_rate = 0.01
+    #     max_iter = 100
+    #
+    #     next_mass = Variable(torch.DoubleTensor([1.3]), requires_grad=True)
+    #     loss_hist = []
+    #     mass_hist = [next_mass]
+    #     last_dist = 1e10
+    #     for i in range(max_iter):
+    #         world, c = make_world(forces, next_mass)
+    #         # world.load_state(initial_state)
+    #         # world.reset_engine()
+    #         positions = positions_run_world(world, run_time=10, screen=None)
+    #         positions = torch.cat(positions)
+    #         positions = positions[:len(ground_truth_pos)]
+    #         # temp_ground_truth_pos = ground_truth_pos[:len(positions)]
+    #
+    #         loss = torch.nn.MSELoss()(positions, ground_truth_pos)
+    #         loss.backward()
+    #         grad = c.mass.grad.data
+    #         # clip gradient
+    #         grad = torch.max(torch.min(grad, torch.DoubleTensor([100])), torch.DoubleTensor([-100]))
+    #         temp = c.mass.data - learning_rate * grad
+    #         temp = max(MASS_EPS, temp[0])
+    #         next_mass = Variable(torch.DoubleTensor([temp]), requires_grad=True)
+    #         # learning_rate /= 1.1
+    #         if abs((last_dist - loss).data[0]) < 1e-5:
+    #             break
+    #         last_dist = loss
+    #         loss_hist.append(loss)
+    #         mass_hist.append(next_mass)
+    #
+    #     world = make_world(forces, next_mass)[0]
+    #     positions_run_world(world, run_time=10, screen=None, recorder=None)
+    #     loss = torch.nn.MSELoss()(positions, ground_truth_pos)
 
 
 if __name__ == '__main__':
