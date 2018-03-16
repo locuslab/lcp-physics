@@ -6,7 +6,7 @@ import torch
 from torch.autograd import Variable
 
 from .bodies import Circle
-from .utils import Indices, Params, cart_to_polar, polar_to_cart
+from .utils import Indices, Params, wrap_variable, cart_to_polar, polar_to_cart, left_orthogonal
 
 
 X = Indices.X
@@ -66,6 +66,7 @@ class DiffCollisionHandler(CollisionHandler):
         is_circle_g1 = isinstance(b1, Circle)
         is_circle_g2 = isinstance(b2, Circle)
         if is_circle_g1 and is_circle_g2:
+            # Simple circle vs circle
             r = b1.rad + b2.rad
             normal = b1.pos - b2.pos
             dist = normal.norm()
@@ -73,573 +74,175 @@ class DiffCollisionHandler(CollisionHandler):
             if penetration.data[0] < -world.eps:
                 return
             normal = normal / dist
-            p1 = -normal * b1.rad
-            p2 = normal * b2.rad
+            p1 = -normal * (b1.rad - penetration / 2)
+            p2 = normal * (b2.rad - penetration / 2)
             pts = [(normal, p1, p2, penetration)]
         elif is_circle_g1 or is_circle_g2:
-            # one rectangle and one circle
+            # SAT for circle vs hull
+            # TODO Optimize by storing separating edge from last time
             if is_circle_g2:
                 # set circle to b1
                 b1, b2 = b2, b1
-            half_dims = b2.dims / 2
-            # four corners (counterclockwise, c1 = top left)
-            c1 = -half_dims
-            c3 = half_dims
-            c2 = torch.cat([c1[X], c3[Y]])
-            c4 = torch.cat([c3[X], c1[Y]])
-            # positions in rect frame
-            b1_pos = b1.pos - b2.pos
-            # TODO Optimize rotation
-            r, theta = cart_to_polar(b1_pos)
-            b1_pos = polar_to_cart(r, theta - b2.rot)
-            # TODO case where circle center is inside rect
-            if c1.data[X] <= b1_pos.data[X] <= c3.data[X]:
-                # top or bottom face contact
-                if b1_pos.data[Y] < 0:
-                    # center-above
-                    normal = c4 - c3
-                    normal = normal / normal.norm()
-                    p2 = torch.cat([b1_pos[X], c1[Y]])
-                else:
-                    # center-below
-                    normal = c3 - c4
-                    normal = normal / normal.norm()
-                    p2 = torch.cat([b1_pos[X], c3[Y]])
-                penetration = b1.rad + half_dims[Y] - torch.abs(b1_pos[Y])
-            elif c1.data[Y] <= b1_pos.data[Y] <= c3.data[Y]:
-                # left or right face contact
-                if b1_pos.data[X] < 0:
-                    # center-left
-                    normal = c1 - c4
-                    normal = normal / normal.norm()
-                    p2 = torch.cat([c1[X], b1_pos[Y]])
-                else:
-                    # center-right
-                    normal = c4 - c1
-                    normal = normal / normal.norm()
-                    p2 = torch.cat([c3[X], b1_pos[Y]])
-                penetration = b1.rad + half_dims[X] - torch.abs(b1_pos[X])
-            else:
-                # corner contact
-                if b1_pos.data[X] < c1.data[X] and b1_pos.data[Y] < c1.data[Y]:
-                    # top-left corner
-                    normal = b1_pos - c1
-                    normal = normal / normal.norm()
-                    p2 = c1
-                elif b1_pos.data[X] > c3.data[X] and b1_pos.data[Y] > c3.data[Y]:
-                    # bottom-right corner
-                    normal = b1_pos - c3
-                    normal = normal / normal.norm()
-                    p2 = c3
-                elif b1_pos.data[X] < c1.data[X] and b1_pos.data[Y] > c3.data[Y]:
-                    # bottom-left corner
-                    normal = b1_pos - c2
-                    normal = normal / normal.norm()
-                    p2 = c2
-                else:
-                    # top-right corner
-                    normal = b1_pos - c4
-                    normal = normal / normal.norm()
-                    p2 = c4
-                penetration = b1.rad - (b1_pos - p2).norm()  # XXX
-            if penetration.data[0] <= -world.eps:
-                return
-            # TODO Optimize rotations
-            r, theta = cart_to_polar(p2)
-            p2 = polar_to_cart(r, theta + b2.rot)
-            r, theta = cart_to_polar(normal)
-            normal = polar_to_cart(r, theta + b2.rot)
+            best_dist = wrap_variable(-1e10)
+            for i in range(len(b2.verts)):
+                edge = b2.verts[(i + 1) % len(b2.verts)] - b2.verts[i]
+                edge_norm = edge.norm()
+                normal = left_orthogonal(edge) / edge_norm
+                # adjust to hull1's frame
+                center = b1.pos - b2.pos
+                # get distance from circle point to edge
+                dist = normal.dot(center - b2.verts[i]) - b1.rad
 
-            p1 = -normal * b1.rad # TODO is this right?
+                if dist.data[0] > best_dist.data[0]:
+                    if dist.data[0] > world.eps:
+                        # exit early if separating axis found
+                        return dist, None, None, None
+                    best_dist = dist
+                    best_normal = normal
+                    best_pt2 = center + normal * -(dist + b1.rad)
+                    best_pt1 = best_pt2 + b2.pos - b1.pos
             if is_circle_g2:
                 # flip back values for circle as g2
-                normal = -normal
-                p1, p2 = p2, p1
-            # penetration = Variable(Tensor([-1]))
-            pts = [(normal, p1, p2, penetration)]
+                best_normal = -best_normal
+                best_pt1, best_pt2 = best_pt2, best_pt1
+            pts = [(best_normal, best_pt1, best_pt2, -best_dist)]
         else:
-            # both are rectangles
-            if b1.rot.data[0] % (math.pi / 2) == 0 and \
-               b2.rot.data[0] % (math.pi / 2) == 0:
-                # both rectangles are axis aligned
-                b1_half_dims = b1.dims / 2
-                b2_half_dims = b2.dims / 2
-                b1_br = b1.pos + b1_half_dims
-                b1_tl = b1.pos - b1_half_dims
-                b2_br = b2.pos + b2_half_dims
-                b2_tl = b2.pos - b2_half_dims
-                delta_pos = b1.pos - b2.pos
-                overlap = b1_half_dims + b2_half_dims - torch.abs(delta_pos)
-                if overlap.data[X] > overlap.data[Y]:
-                    penetration = overlap[Y]
-                    if penetration.data[0] < -world.eps:
-                        return
-                    lx = torch.max(b1_tl[X], b2_tl[X])
-                    rx = torch.min(b1_br[X], b2_br[X])
-                    normal = b1_tl - torch.cat([b1_tl[X], b1_br[Y]])
-                    if delta_pos.data[Y] <= 0:
-                        # above
-                        pts_1 = [torch.cat([lx, b1_br[Y]]), torch.cat(([rx, b1_br[Y]]))]
-                        pts_2 = [torch.cat([lx, b2_tl[Y]]), torch.cat(([rx, b2_tl[Y]]))]
-                    else:
-                        # below
-                        pts_1 = [torch.cat([lx, b1_tl[Y]]), torch.cat(([rx, b1_tl[Y]]))]
-                        pts_2 = [torch.cat([lx, b2_br[Y]]), torch.cat(([rx, b2_br[Y]]))]
-                        normal *= -1
-                    normal = normal / normal.norm()
-                elif overlap.data[X] < overlap.data[Y]:
-                    penetration = overlap[X]
-                    if penetration.data[0] < -world.eps:
-                        return
-                    ty = torch.max(b1_tl[Y], b2_tl[Y])
-                    by = torch.min(b1_br[Y], b2_br[Y])
-                    normal = b1_tl - torch.cat([b1_br[X], b1_tl[Y]])
-                    if delta_pos.data[X] <= 0:
-                        # left
-                        pts_1 = [torch.cat([b1_tl[X]], ty), torch.cat(([b1_tl[X], by]))]
-                        pts_2 = [torch.cat([b2_br[X], ty]), torch.cat(([b2_br[X], by]))]
-                    else:
-                        # right
-                        pts_1 = [torch.cat([b1_br[X]], ty), torch.cat(([b1_br[X], by]))]
-                        pts_2 = [torch.cat([b2_tl[X], ty]), torch.cat(([b2_tl[X], by]))]
-                        normal *= -1
-                    normal = normal / normal.norm()
-                else:
-                    assert False  # TODO normal that points 45 degrees from corner
-                pts = [(normal, pt1 - b1.pos, pt2 - b1.pos, penetration)
-                       for pt1, pt2 in zip(pts_1, pts_2)]
+            # SAT for hull x hull contact
+            # TODO Optimize for rectangle vs rectangle
+            contact1 = self.test_separations(b1, b2, eps=world.eps)
+            if contact1[0].data[0] > world.eps:
+                return
+            contact2 = self.test_separations(b2, b1, eps=world.eps)
+            if contact2[0].data[0] > world.eps:
+                return
+            if contact2[0].data[0] > contact1[0].data[0]:
+                normal = -contact2[3]
+                half_edge_norm = contact2[5] / 2
+                ref_edge_idx = contact2[6]
+                incident_vertex_idx = contact2[4]
+                incident_edge_idx = self.get_incident_edge(normal, b1, incident_vertex_idx)
+                incident_verts = [b1.verts[incident_edge_idx],
+                                  b1.verts[(incident_edge_idx + 1) % len(b1.verts)]]
+                incident_verts = [v + b1.pos - b2.pos for v in incident_verts]
+                clip_plane = left_orthogonal(normal)
+                clipped_verts = self.clip_segment_to_line(incident_verts, clip_plane,
+                                                          half_edge_norm)
+                clipped_verts = self.clip_segment_to_line(clipped_verts, -clip_plane,
+                                                          half_edge_norm)
+                pts = []
+                for v in clipped_verts:
+                    dist = normal.dot(v - b2.verts[ref_edge_idx])
+                    if dist.data[0] <= world.eps:
+                        pt1 = v + normal * -dist
+                        pt2 = pt1 + b2.pos - b1.pos
+                        pts.append((normal, pt2, pt1, -dist))
             else:
-                # rectangles not axis aligned
-                # TODO Simplify case where both are aligned with each other but not with world?
-                delta_pos = b1.pos - b2.pos
-                # Calculate separations for axis in b1's frame
-                c, s = torch.cos(-b1.rot), torch.sin(-b1.rot)
-                rot_mat_1 = torch.cat([torch.cat([c, -s]).unsqueeze(0),
-                                       torch.cat([s, c]).unsqueeze(0)], 0)
-                rot_delta_pos = torch.matmul(rot_mat_1, delta_pos)
-                rot_2 = b2.rot - b1.rot
-                c, s = torch.cos(rot_2), torch.sin(rot_2)
-                b2_rot_mat = torch.cat([torch.cat([c, -s]).unsqueeze(0),
-                                        torch.cat([s, c]).unsqueeze(0)], 0)
-                rot_half_x_2 = torch.matmul(b2_rot_mat, torch.cat([b2.dims[X] / 2, Variable(Tensor(1).zero_())]))
-                rot_half_y_2 = torch.matmul(b2_rot_mat, torch.cat([Variable(Tensor(1).zero_()), b2.dims[Y] / 2]))
-                b2_extent = torch.cat([torch.abs(rot_half_x_2[X]) + torch.abs(rot_half_y_2[X]),
-                                       torch.abs(rot_half_x_2[Y]) + torch.abs(rot_half_y_2[Y])])
-                b1_extent = b1.dims / 2
-                overlap_1 = b1_extent + b2_extent - torch.abs(rot_delta_pos)
-
-                # Calculate separations for axis in b2's frame
-                c, s = torch.cos(-b2.rot), torch.sin(-b2.rot)
-                rot_mat_2 = torch.cat([torch.cat([c, -s]).unsqueeze(0),
-                                       torch.cat([s, c]).unsqueeze(0)], 0)
-                rot_delta_pos = torch.matmul(rot_mat_2, delta_pos)
-                rot_1 = b1.rot - b2.rot
-                c, s = torch.cos(rot_1), torch.sin(rot_1)
-                b1_rot_mat = torch.cat([torch.cat([c, -s]).unsqueeze(0),
-                                        torch.cat([s, c]).unsqueeze(0)], 0)
-                rot_half_x_1 = torch.matmul(b1_rot_mat, torch.cat([b1.dims[X] / 2, Variable(Tensor(1).zero_())]))
-                rot_half_y_1 = torch.matmul(b1_rot_mat, torch.cat([Variable(Tensor(1).zero_()), b1.dims[Y] / 2]))
-                b1_extent = torch.cat([torch.abs(rot_half_x_1[X]) + torch.abs(rot_half_y_1[X]),
-                                       torch.abs(rot_half_x_1[Y]) + torch.abs(rot_half_y_1[Y])])
-                b2_extent = b2.dims / 2
-                overlap_2 = b1_extent + b2_extent - torch.abs(rot_delta_pos)
-
-                min_overlap_1 = torch.min(overlap_1)
-                min_overlap_2 = torch.min(overlap_2)
-                penetration = torch.min(min_overlap_1, min_overlap_2)
-                if penetration.data[0] < -world.eps:
-                    return
-                if min_overlap_1.data[0] <= min_overlap_2.data[0]:
-                    # Minimal penetration is in b1 frame
-                    rot_b1_pos = torch.matmul(rot_mat_1, b1.pos)
-                    rot_b2_pos = torch.matmul(rot_mat_1, b2.pos)
-                    b2_half_dims = b2.dims / 2
-                    c1 = -b2_half_dims
-                    c3 = b2_half_dims
-                    c2 = torch.cat([c1[X], c3[Y]])
-                    c4 = torch.cat([c3[X], c1[Y]])
-                    cs = [c1, c2, c3, c4]
-                    rot_cs = [rot_b2_pos + torch.matmul(b2_rot_mat, c) for c in cs]
-                    if overlap_1.data[X] < overlap_1.data[Y]:
-                        # Minimal penetration is in X axis
-                        normal = torch.cat([-b1.dims[X], b1.dims[Y]]) - b1.dims
-                        normal = torch.matmul(rot_mat_1.t(), normal)
-                        normal = normal / normal.norm()
-                        if rot_b2_pos.data[X] < rot_b1_pos.data[X]:
-                            # b2 is to the left of b1
-                            normal = -normal
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[X] > rot_cs[closest].data[X]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[X] > rot_cs[sec_closest].data[X]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[Y] > rot_b1_pos.data[Y] + b1.dims.data[Y] / 2:
-                                pt1 = torch.cat([-b1.dims[X] / 2, b1.dims[Y] / 2])
-                                pt2 = torch.cat([rot_cs[closest][X], (rot_b1_pos + pt1)[Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            elif rot_cs[closest].data[Y] < rot_b1_pos.data[Y] - b1.dims.data[Y] / 2:
-                                pt1 = torch.cat([-b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                pt2 = torch.cat([rot_cs[closest][X], (rot_b1_pos + pt1)[Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            else:
-                                pt2 = torch.matmul(rot_mat_2.t(), cs[closest])
-                                pt1 = torch.cat([-b1.dims[X] / 2, rot_cs[closest][Y] - rot_b1_pos[Y]])
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[Y] > rot_b1_pos.data[Y] + b1.dims.data[Y] / 2:
-                                    pt1 = torch.cat([-b1.dims[X] / 2, b1.dims[Y] / 2])
-                                    pt2 = torch.cat([rot_cs[sec_closest][X], (rot_b1_pos + pt1)[Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                elif rot_cs[sec_closest].data[Y] < rot_b1_pos.data[Y] - b1.dims.data[Y] / 2:
-                                    pt1 = torch.cat([-b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                    pt2 = torch.cat([rot_cs[sec_closest][X], (rot_b1_pos + pt1)[Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                else:
-                                    pt2 = torch.matmul(rot_mat_2.t(), cs[sec_closest])
-                                    pt1 = torch.cat([-b1.dims[X] / 2, rot_cs[sec_closest][Y] - rot_b1_pos[Y]])
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[X]))
-                        else:
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[X] < rot_cs[closest].data[X]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[X] < rot_cs[sec_closest].data[X]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[Y] > rot_b1_pos.data[Y] + b1.dims.data[Y] / 2:
-                                pt1 = torch.cat([b1.dims[X] / 2, b1.dims[Y] / 2])
-                                pt2 = torch.cat([rot_cs[closest][X], (rot_b1_pos + pt1)[Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            elif rot_cs[closest].data[Y] < rot_b1_pos.data[Y] - b1.dims.data[Y] / 2:
-                                pt1 = torch.cat([b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                pt2 = torch.cat([rot_cs[closest][X], (rot_b1_pos + pt1)[Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            else:
-                                pt2 = torch.matmul(rot_mat_2.t(), cs[closest])
-                                pt1 = torch.cat([b1.dims[X] / 2, rot_cs[closest][Y] - rot_b1_pos[Y]])
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[Y] > rot_b1_pos.data[Y] + b1.dims.data[Y] / 2:
-                                    pt1 = torch.cat([b1.dims[X] / 2, b1.dims[Y] / 2])
-                                    pt2 = torch.cat([rot_cs[sec_closest][X], (rot_b1_pos + pt1)[Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                elif rot_cs[sec_closest].data[Y] < rot_b1_pos.data[Y] - b1.dims.data[Y] / 2:
-                                    pt1 = torch.cat([b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                    pt2 = torch.cat([rot_cs[sec_closest][X], (rot_b1_pos + pt1)[Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                else:
-                                    pt2 = torch.matmul(rot_mat_2.t(), cs[sec_closest])
-                                    pt1 = torch.cat([b1.dims[X] / 2, rot_cs[sec_closest][Y] - rot_b1_pos[Y]])
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[X]))
-                    elif overlap_1.data[X] > overlap_1.data[Y]:
-                        # Minimal penetration is in Y axis
-                        normal = torch.cat([b1.dims[X], -b1.dims[Y]]) - b1.dims
-                        normal = torch.matmul(rot_mat_1.t(), normal)
-                        normal = normal / normal.norm()
-                        if rot_b2_pos.data[Y] < rot_b1_pos.data[Y]:
-                            # b2 is above b1
-                            normal = -normal
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[Y] > rot_cs[closest].data[Y]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[Y] > rot_cs[sec_closest].data[Y]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[X] > rot_b1_pos.data[X] + b1.dims.data[X] / 2:
-                                pt1 = torch.cat([b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[closest][Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            elif rot_cs[closest].data[X] < rot_b1_pos.data[X] - b1.dims.data[X] / 2:
-                                pt1 = torch.cat([-b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[closest][Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            else:
-                                pt2 = torch.matmul(rot_mat_2.t(), cs[closest])
-                                pt1 = torch.cat([rot_cs[closest][X] - rot_b1_pos[X], -b1.dims[Y] / 2])
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[X] > rot_b1_pos.data[X] + b1.dims.data[X] / 2:
-                                    pt1 = torch.cat([b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                    pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[sec_closest][Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                elif rot_cs[sec_closest].data[X] < rot_b1_pos.data[X] - b1.dims.data[X] / 2:
-                                    pt1 = torch.cat([-b1.dims[X] / 2, -b1.dims[Y] / 2])
-                                    pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[sec_closest][Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                else:
-                                    pt2 = torch.matmul(rot_mat_2.t(), cs[sec_closest])
-                                    pt1 = torch.cat([rot_cs[sec_closest][X] - rot_b1_pos[X], -b1.dims[Y] / 2])
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[Y]))
-                        else:
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[Y] < rot_cs[closest].data[Y]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[Y] < rot_cs[sec_closest].data[Y]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[X] > rot_b1_pos.data[X] + b1.dims.data[X] / 2:
-                                pt1 = torch.cat([b1.dims[X] / 2, b1.dims[Y] / 2])
-                                pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[closest][Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            elif rot_cs[closest].data[X] < rot_b1_pos.data[X] - b1.dims.data[X] / 2:
-                                pt1 = torch.cat([-b1.dims[X] / 2, b1.dims[Y] / 2])
-                                pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[closest][Y]])
-                                pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            else:
-                                pt2 = torch.matmul(rot_mat_2.t(), cs[closest])
-                                pt1 = torch.cat([rot_cs[closest][X] - rot_b1_pos[X], b1.dims[Y] / 2])
-                                pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[X] > rot_b1_pos.data[X] + b1.dims.data[X] / 2:
-                                    pt1 = torch.cat([b1.dims[X] / 2, b1.dims[Y] / 2])
-                                    pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[sec_closest][Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                elif rot_cs[sec_closest].data[X] < rot_b1_pos.data[X] - b1.dims.data[X] / 2:
-                                    pt1 = torch.cat([-b1.dims[X] / 2, b1.dims[Y] / 2])
-                                    pt2 = torch.cat([(rot_b1_pos + pt1)[X], rot_cs[sec_closest][Y]])
-                                    pt2 = torch.matmul(rot_mat_1.t(), pt2) - b2.pos
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                else:
-                                    pt2 = torch.matmul(rot_mat_2.t(), cs[sec_closest])
-                                    pt1 = torch.cat([rot_cs[sec_closest][X] - rot_b1_pos[X], b1.dims[Y] / 2])
-                                    pt1 = torch.matmul(rot_mat_1.t(), pt1)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[Y]))
-                    else:
-                        assert False    # TODO case where == ?
-                else:
-                    # Minimal penetration is in b2 frame
-                    rot_b1_pos = torch.matmul(rot_mat_2, b1.pos)
-                    rot_b2_pos = torch.matmul(rot_mat_2, b2.pos)
-                    b1_half_dims = b1.dims / 2
-                    c1 = -b1_half_dims
-                    c3 = b1_half_dims
-                    c2 = torch.cat([c1[X], c3[Y]])
-                    c4 = torch.cat([c3[X], c1[Y]])
-                    cs = [c1, c2, c3, c4]
-                    rot_cs = [rot_b1_pos + torch.matmul(b1_rot_mat, c) for c in cs]
-                    if overlap_2.data[X] < overlap_2.data[Y]:
-                        # Minimal penetration is in X axis
-                        normal = torch.cat([-b2.dims[X], b2.dims[Y]]) - b2.dims
-                        normal = torch.matmul(rot_mat_2.t(), normal)
-                        normal = normal / normal.norm()
-                        if rot_b1_pos.data[X] < rot_b2_pos.data[X]:
-                            # b1 is to the left of b2
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[X] > rot_cs[closest].data[X]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[X] > rot_cs[sec_closest].data[X]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[Y] > rot_b2_pos.data[Y] + b2.dims.data[Y] / 2:
-                                pt2 = torch.cat([-b2.dims[X] / 2, b2.dims[Y] / 2])
-                                pt1 = torch.cat([rot_cs[closest][X], (rot_b2_pos + pt2)[Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            elif rot_cs[closest].data[Y] < rot_b2_pos.data[Y] - b2.dims.data[Y] / 2:
-                                pt2 = torch.cat([-b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                pt1 = torch.cat([rot_cs[closest][X], (rot_b2_pos + pt2)[Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            else:
-                                pt1 = torch.matmul(rot_mat_1.t(), cs[closest])
-                                pt2 = torch.cat([-b2.dims[X] / 2, rot_cs[closest][Y] - rot_b2_pos[Y]])
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[Y] > rot_b2_pos.data[Y] + b2.dims.data[Y] / 2:
-                                    pt2 = torch.cat([-b2.dims[X] / 2, b2.dims[Y] / 2])
-                                    pt1 = torch.cat([rot_cs[sec_closest][X], (rot_b2_pos + pt2)[Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                elif rot_cs[sec_closest].data[Y] < rot_b2_pos.data[Y] - b2.dims.data[Y] / 2:
-                                    pt2 = torch.cat([-b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                    pt1 = torch.cat([rot_cs[sec_closest][X], (rot_b2_pos + pt2)[Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                else:
-                                    pt1 = torch.matmul(rot_mat_1.t(), cs[sec_closest])
-                                    pt2 = torch.cat([-b2.dims[X] / 2, rot_cs[sec_closest][Y] - rot_b2_pos[Y]])
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[X]))
-                        else:
-                            normal = -normal
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[X] < rot_cs[closest].data[X]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[X] < rot_cs[sec_closest].data[X]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[X] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[Y] > rot_b2_pos.data[Y] + b2.dims.data[Y] / 2:
-                                pt2 = torch.cat([b2.dims[X] / 2, b2.dims[Y] / 2])
-                                pt1 = torch.cat([rot_cs[closest][X], (rot_b2_pos + pt2)[Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            elif rot_cs[closest].data[Y] < rot_b2_pos.data[Y] - b2.dims.data[Y] / 2:
-                                pt2 = torch.cat([b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                pt1 = torch.cat([rot_cs[closest][X], (rot_b2_pos + pt2)[Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            else:
-                                pt1 = torch.matmul(rot_mat_1.t(), cs[closest])
-                                pt2 = torch.cat([b2.dims[X] / 2, rot_cs[closest][Y] - rot_b2_pos[Y]])
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[Y] > rot_b2_pos.data[Y] + b2.dims.data[Y] / 2:
-                                    pt2 = torch.cat([b2.dims[X] / 2, b2.dims[Y] / 2])
-                                    pt1 = torch.cat([rot_cs[sec_closest][X], (rot_b2_pos + pt2)[Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                elif rot_cs[sec_closest].data[Y] < rot_b2_pos.data[Y] - b2.dims.data[Y] / 2:
-                                    pt2 = torch.cat([b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                    pt1 = torch.cat([rot_cs[sec_closest][X], (rot_b2_pos + pt2)[Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                else:
-                                    pt1 = torch.matmul(rot_mat_1.t(), cs[sec_closest])
-                                    pt2 = torch.cat([b2.dims[X] / 2, rot_cs[sec_closest][Y] - rot_b2_pos[Y]])
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[X]))
-                    elif overlap_2.data[X] > overlap_2.data[Y]:
-                        # Minimal penetration is in Y axis
-                        normal = torch.cat([b2.dims[X], -b2.dims[Y]]) - b2.dims
-                        normal = torch.matmul(rot_mat_2.t(), normal)
-                        normal = normal / normal.norm()
-                        if rot_b1_pos.data[Y] < rot_b2_pos.data[Y]:
-                            # b1 is above b2
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[Y] > rot_cs[closest].data[Y]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[Y] > rot_cs[sec_closest].data[Y]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[closest] - rot_cs[sec_closest]
-                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[X] > rot_b2_pos.data[X] + b2.dims.data[X] / 2:
-                                pt2 = torch.cat([b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[closest][Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            elif rot_cs[closest].data[X] < rot_b2_pos.data[X] - b2.dims.data[X] / 2:
-                                pt2 = torch.cat([-b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[closest][Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            else:
-                                pt1 = torch.matmul(rot_mat_1.t(), cs[closest])
-                                pt2 = torch.cat([rot_cs[closest][X] - rot_b2_pos[X], -b2.dims[Y] / 2])
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[X] > rot_b2_pos.data[X] + b2.dims.data[X] / 2:
-                                    pt2 = torch.cat([b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                    pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[sec_closest][Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                elif rot_cs[sec_closest].data[X] < rot_b2_pos.data[X] - b2.dims.data[X] / 2:
-                                    pt2 = torch.cat([-b2.dims[X] / 2, -b2.dims[Y] / 2])
-                                    pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[sec_closest][Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                else:
-                                    pt1 = torch.matmul(rot_mat_1.t(), cs[sec_closest])
-                                    pt2 = torch.cat([rot_cs[sec_closest][X] - rot_b2_pos[X], -b2.dims[Y] / 2])
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[Y]))
-                        else:
-                            normal = -normal
-                            closest = sec_closest = None
-                            for i in range(len(rot_cs)):
-                                if closest is None or rot_cs[i].data[Y] < rot_cs[closest].data[Y]:
-                                    sec_closest = closest
-                                    closest = i
-                                elif sec_closest is None or rot_cs[i].data[Y] < rot_cs[sec_closest].data[Y]:
-                                    sec_closest = i
-                            pen_diff = rot_cs[sec_closest] - rot_cs[closest]
-                            if pen_diff.data[Y] > world.parallel_eps + max(penetration.data[0], 0):
-                                sec_closest = None
-                            if rot_cs[closest].data[X] > rot_b2_pos.data[X] + b2.dims.data[X] / 2:
-                                pt2 = torch.cat([b2.dims[X] / 2, b2.dims[Y] / 2])
-                                pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[closest][Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            elif rot_cs[closest].data[X] < rot_b2_pos.data[X] - b2.dims.data[X] / 2:
-                                pt2 = torch.cat([-b2.dims[X] / 2, b2.dims[Y] / 2])
-                                pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[closest][Y]])
-                                pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            else:
-                                pt1 = torch.matmul(rot_mat_1.t(), cs[closest])
-                                pt2 = torch.cat([rot_cs[closest][X] - rot_b2_pos[X], b2.dims[Y] / 2])
-                                pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                            pts = [(normal, pt1, pt2, penetration)]
-                            if sec_closest is not None:
-                                if rot_cs[sec_closest].data[X] > rot_b2_pos.data[X] + b2.dims.data[X] / 2:
-                                    pt2 = torch.cat([b2.dims[X] / 2, b2.dims[Y] / 2])
-                                    pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[sec_closest][Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                elif rot_cs[sec_closest].data[X] < rot_b2_pos.data[X] - b2.dims.data[X] / 2:
-                                    pt2 = torch.cat([-b2.dims[X] / 2, b2.dims[Y] / 2])
-                                    pt1 = torch.cat([(rot_b2_pos + pt2)[X], rot_cs[sec_closest][Y]])
-                                    pt1 = torch.matmul(rot_mat_2.t(), pt1) - b1.pos
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                else:
-                                    pt1 = torch.matmul(rot_mat_1.t(), cs[sec_closest])
-                                    pt2 = torch.cat([rot_cs[sec_closest][X] - rot_b2_pos[X], b2.dims[Y] / 2])
-                                    pt2 = torch.matmul(rot_mat_2.t(), pt2)
-                                pts.append((normal, pt1, pt2, penetration - pen_diff[Y]))
-                    else:
-                        assert False  # TODO case where == ?
+                normal = -contact1[3]
+                half_edge_norm = contact1[5] / 2
+                ref_edge_idx = contact1[6]
+                incident_vertex_idx = contact1[4]
+                incident_edge_idx = self.get_incident_edge(normal, b2, incident_vertex_idx)
+                incident_verts = [b2.verts[incident_edge_idx],
+                                  b2.verts[(incident_edge_idx+1) % len(b2.verts)]]
+                incident_verts = [v + b2.pos - b1.pos for v in incident_verts]
+                clip_plane = left_orthogonal(normal)
+                clipped_verts = self.clip_segment_to_line(incident_verts, clip_plane,
+                                                          half_edge_norm)
+                clipped_verts = self.clip_segment_to_line(clipped_verts, -clip_plane,
+                                                          half_edge_norm)
+                pts = []
+                for v in clipped_verts:
+                    dist = normal.dot(v - b1.verts[ref_edge_idx])
+                    if dist.data[0] <= world.eps:
+                        pt1 = v + normal * -dist
+                        pt2 = pt1 + b1.pos - b2.pos
+                        pts.append((-normal, pt1, pt2, -dist))
 
         for p in pts:
             world.collisions.append((p, geom1.body, geom2.body))
         world.collisions_debug = world.collisions  # XXX
+
+    @staticmethod
+    def get_support(points, direction):
+        best_point = None
+        best_norm = -1.
+        for i, p in enumerate(points):
+            cur_norm = p.dot(direction).data[0]
+            if cur_norm >= best_norm:
+                best_point = p
+                best_idx = i
+                best_norm = cur_norm
+        return best_point, best_idx
+
+    @staticmethod
+    def test_separations(hull1, hull2, eps=0):
+        verts1, verts2 = hull1.verts, hull2.verts
+        best_dist = wrap_variable(-1e10)
+        best_normal = None
+        best_vertex = -1
+        for i in range(len(verts1)):
+            edge = verts1[(i+1) % len(verts1)] - verts1[i]
+            edge_norm = edge.norm()
+            normal = left_orthogonal(edge) / edge_norm
+            support_point, support_idx = DiffCollisionHandler.get_support(verts2, -normal)
+            # adjust to hull1's frame
+            support_point = support_point + hull2.pos - hull1.pos
+            # get distance from support point to edge
+            dist = normal.dot(support_point - verts1[i])
+
+            if dist.data[0] > best_dist.data[0]:
+                if dist.data[0] > eps:
+                    # exit early if separating axis found
+                    return dist, None, None, None
+                best_dist = dist
+                best_normal = normal
+                best_pt1 = support_point + normal * -dist
+                best_pt2 = best_pt1 + hull1.pos - hull2.pos
+                best_vertex = support_idx
+                best_edge_norm = edge_norm
+                best_edge = i
+                # TODO Optimize by storing separating edge from last time
+        return best_dist, best_pt1, best_pt2, -best_normal, \
+            best_vertex, best_edge_norm, best_edge
+
+    @staticmethod
+    def get_incident_edge(ref_normal, inc_hull, inc_vertex):
+        inc_verts = inc_hull.verts
+        # two possible incident edges (pointing to and from incident vertex)
+        edges = [(inc_vertex-1) % len(inc_verts), inc_vertex]
+        min_dot = 1e10
+        best_edge = -1
+        for i in edges:
+            edge = inc_verts[(i+1) % len(inc_verts)] - inc_verts[i]
+            edge_norm = edge.norm()
+            inc_normal = left_orthogonal(edge) / edge_norm
+            dot = ref_normal.dot(inc_normal).data[0]
+            if dot < min_dot:
+                min_dot = dot
+                best_edge = i
+        return best_edge
+
+    @staticmethod
+    def clip_segment_to_line(verts, normal, offset):
+        clipped_verts = []
+
+        # Calculate the distance of end points to the line
+        distance0 = normal.dot(verts[0]) + offset
+        distance1 = normal.dot(verts[1]) + offset
+
+        # If the points are behind the plane
+        if distance0.data[0] >= 0.0:
+            clipped_verts.append(verts[0])
+        if distance1.data[0] >= 0.0:
+            clipped_verts.append(verts[1])
+
+        # If the points are on different sides of the plane
+        if distance0.data[0] * distance1.data[0] < 0.0:
+            # Find intersection point of edge and plane
+            interp = distance0 / (distance0 - distance1)
+
+            # Vertex is hitting edge.
+            cv = verts[0] + interp * (verts[1] - verts[0])
+            clipped_verts.append(cv)
+
+        return clipped_verts

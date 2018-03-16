@@ -55,12 +55,12 @@ class PdipmEngine(Engine):
             if self.cached_inverse is None:
                 inv = torch.inverse(P)
                 if world.static_inverse:
-                    self.cached_inverse = torch.inverse(P)
+                    self.cached_inverse = inv
             else:
                 inv = self.cached_inverse
             # try:
             x = torch.matmul(inv, u)  # Eq. 2.41
-            # except RuntimeError:  # XXX
+            # except RuntimeError:
             #     print('\nRegularizing singular matrix.\n')
             #     x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0),
             #             P.size(1)).type_as(P.data) * 1e-10)), u)

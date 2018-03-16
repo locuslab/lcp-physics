@@ -18,14 +18,14 @@ def vert_impulse(t):
 
 
 def hor_impulse(t):
-    if t < 0.2:
+    if t < 0.1:
         return ExternalForce.RIGHT
     else:
         return ExternalForce.ZEROS
 
 
 def rot_impulse(t):
-    if t < 0.2:
+    if t < 0.1:
         return ExternalForce.ROT
     else:
         return ExternalForce.ZEROS

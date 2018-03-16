@@ -3,10 +3,10 @@ import sys
 
 import pygame
 
-from lcp_physics.physics.bodies import Circle, Rect
+from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint, RotConstraint, TotalConstraint
 from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
-from lcp_physics.physics.utils import Params
+from lcp_physics.physics.utils import Params, Recorder
 from lcp_physics.physics.world import World, BatchWorld, run_world
 
 
@@ -78,6 +78,9 @@ def chain_demo(screen):
     bodies.append(c)
     c.add_force(ExternalForce(hor_impulse, multiplier=1000))
 
+    clock = Circle([975, 575], 20, vel=[1, 0, 0])
+    bodies.append(clock)
+
     recorder = None
     # recorder = Recorder(DT, screen)
     world = World(bodies, joints, dt=DT / 10)
@@ -89,7 +92,7 @@ def slide_demo(screen):
     joints = []
 
     inclination = math.pi / 32
-    r = Rect([math.pi / 32, 500, 300], [900, 10])
+    r = Rect([inclination, 500, 300], [900, 10])
     bodies.append(r)
     joints.append(TotalConstraint(r))
 
@@ -149,6 +152,9 @@ def fric_demo(screen):
     joints.append(XConstraint(c))
     joints.append(YConstraint(c))
 
+    clock = Circle([975, 575], 20, vel=[1, 0, 0])
+    bodies.append(clock)
+
     recorder = None
     # recorder = Recorder(DT, screen)
     world = World(bodies, joints, dt=DT)
@@ -168,5 +174,5 @@ if __name__ == '__main__':
 
     slide_demo(screen)
     fric_demo(screen)
-    chain_demo(screen)
+    # chain_demo(screen)
     debug_demo(screen)

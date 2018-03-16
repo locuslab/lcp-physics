@@ -13,8 +13,6 @@ class Params:
 
     # Contact tolerance parameter
     DEFAULT_EPSILON = 0.1
-    # Parallel contact tolerance
-    DEFAULT_PAR_EPS = DEFAULT_EPSILON
 
     # Default simulation parameters
     DEFAULT_RESTITUTION = 0.5
@@ -69,18 +67,24 @@ class Recorder:
 
 def cart_to_polar(cart_vec, positive=True):
     r = cart_vec.norm()
-    theta = torch.cat([torch.atan2(cart_vec[Indices.Y], cart_vec[Indices.X])])
+    theta = torch.atan2(cart_vec[Indices.Y], cart_vec[Indices.X])
     if theta.data[0] < 0 and positive:
         theta += 2 * math.pi
     return r, theta
 
 
 def polar_to_cart(r, theta):
-    return torch.cat([torch.cos(theta), torch.sin(theta)]) * r
+    ret = torch.cat([torch.cos(theta).unsqueeze(0),
+                     torch.sin(theta).unsqueeze(0)]).squeeze() * r
+    return ret
 
 
 def cross_2d(v1, v2):
     return v1[0] * v2[1] - v1[1] * v2[0]
+
+
+def left_orthogonal(v):
+    return torch.cat([v[1], -v[0]])
 
 
 def binverse(x):
