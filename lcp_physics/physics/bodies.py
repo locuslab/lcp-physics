@@ -141,10 +141,9 @@ class Hull(Body):
     def __init__(self, ref_point, vertices, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
                  fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
-        assert len(vertices) > 2
-        # TODO Ensure vertices in clockwise order? Or at least sequential?
         # center vertices around centroid
         verts = [wrap_variable(v) for v in vertices]
+        assert len(verts) > 2 and self.is_clockwise(verts)
         centroid = self._get_centroid(verts)
         self.verts = [v - centroid for v in verts]
         # center position at centroid
@@ -201,6 +200,15 @@ class Hull(Body):
             numerator += cross * (v1 + v2)
             denominator += cross / 2
         return 1 / 6 * numerator / denominator
+
+    @staticmethod
+    def is_clockwise(verts):
+        total = 0
+        for i in range(len(verts)):
+            v1 = verts[i]
+            v2 = verts[(i+1) % len(verts)]
+            total += ((v2[X] - v1[X]) * (v2[Y] + v1[Y])).data[0]
+        return total < 0
 
     def draw(self, screen, draw_center=True):
         # vertices in global frame

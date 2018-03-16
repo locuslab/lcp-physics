@@ -477,17 +477,17 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                     update_list += joint[0].draw(screen)
 
                 # XXX visualize collision points and normal for debug
-                if world.collisions_debug:
-                    for c in world.collisions_debug:
-                        (normal, p1, p2, penetration), b1, b2 = c
-                        b1_pos = world.bodies[b1].pos
-                        b2_pos = world.bodies[b2].pos
-                        p1 = p1 + b1_pos
-                        p2 = p2 + b2_pos
-                        pygame.draw.circle(screen, (0, 255, 0), p1.data.numpy().astype(int), 5)
-                        pygame.draw.circle(screen, (0, 0, 255), p2.data.numpy().astype(int), 5)
-                        pygame.draw.line(screen, (0, 255, 0), p1.data.numpy().astype(int),
-                                         (p1.data.numpy() + normal.data.numpy() * 100).astype(int), 3)
+                # if world.collisions_debug:
+                #     for c in world.collisions_debug:
+                #         (normal, p1, p2, penetration), b1, b2 = c
+                #         b1_pos = world.bodies[b1].pos
+                #         b2_pos = world.bodies[b2].pos
+                #         p1 = p1 + b1_pos
+                #         p2 = p2 + b2_pos
+                #         pygame.draw.circle(screen, (0, 255, 0), p1.data.numpy().astype(int), 5)
+                #         pygame.draw.circle(screen, (0, 0, 255), p2.data.numpy().astype(int), 5)
+                #         pygame.draw.line(screen, (0, 255, 0), p1.data.numpy().astype(int),
+                #                          (p1.data.numpy() + normal.data.numpy() * 100).astype(int), 3)
 
                 if not recorder:
                     # Don't refresh screen if recording
