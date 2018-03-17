@@ -9,7 +9,6 @@ from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor
 from lcp_physics.physics.utils import Params, Recorder
 from lcp_physics.physics.world import World, BatchWorld, run_world
 
-
 TIME = 20
 DT = Params.DEFAULT_DT
 
@@ -60,21 +59,22 @@ def debug_demo(screen):
 def chain_demo(screen):
     bodies = []
     joints = []
+    restitution = 0.9
 
     # make chain of rectangles
-    r = Rect([300, 50], [20, 60])
+    r = Rect([300, 50], [20, 60], restitution=restitution)
     bodies.append(r)
     joints.append(XConstraint(r))
     joints.append(YConstraint(r))
     for i in range(1, 10):
-        r = Rect([300, 50 + 50 * i], [20, 60])
+        r = Rect([300, 50 + 50 * i], [20, 60], restitution=restitution)
         bodies.append(r)
         joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
         bodies[-1].add_no_collision(bodies[-2])
     bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
 
     # make projectile
-    c = Circle([50, 500], 20)
+    c = Circle([50, 500], 20, restitution=restitution)
     bodies.append(c)
     c.add_force(ExternalForce(hor_impulse, multiplier=1000))
 
@@ -83,7 +83,7 @@ def chain_demo(screen):
 
     recorder = None
     # recorder = Recorder(DT, screen)
-    world = World(bodies, joints, dt=DT / 10)
+    world = World(bodies, joints, dt=DT / 5)
     run_world(world, run_time=TIME * 2, screen=screen, recorder=recorder)
 
 
@@ -174,5 +174,5 @@ if __name__ == '__main__':
 
     slide_demo(screen)
     fric_demo(screen)
-    # chain_demo(screen)
+    chain_demo(screen)
     debug_demo(screen)

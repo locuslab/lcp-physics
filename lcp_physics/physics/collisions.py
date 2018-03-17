@@ -46,7 +46,7 @@ class OdeCollisionHandler(CollisionHandler):
             p2 = point - Variable(Tensor(geom2.getPosition()))
             world.collisions.append(((normal, p1[:DIM], p2[:DIM], penetration),
                                     geom1.body, geom2.body))
-            world.collisions_debug = world.collisions  # XXX
+            # world.collisions_debug = world.collisions  # XXX
 
 
 class DiffCollisionHandler(CollisionHandler):
@@ -54,7 +54,6 @@ class DiffCollisionHandler(CollisionHandler):
         self.debug_callback = OdeCollisionHandler()
 
     def __call__(self, args, geom1, geom2):
-        # XXX
         # self.debug_callback(args, geom1, geom2)
 
         if geom1 in geom2.no_collision:
@@ -79,24 +78,27 @@ class DiffCollisionHandler(CollisionHandler):
             pts = [(normal, p1, p2, penetration)]
         elif is_circle_g1 or is_circle_g2:
             # SAT for circle vs hull
-            # TODO Optimize by storing separating edge from last time
             if is_circle_g2:
                 # set circle to b1
                 b1, b2 = b2, b1
             best_dist = wrap_variable(-1e10)
-            for i in range(len(b2.verts)):
-                edge = b2.verts[(i + 1) % len(b2.verts)] - b2.verts[i]
+            num_verts = len(b2.verts)
+            start_edge = b2.last_sat_idx
+            for i in range(start_edge, num_verts + start_edge):
+                idx = i % num_verts
+                edge = b2.verts[(idx+1) % num_verts] - b2.verts[idx]
                 edge_norm = edge.norm()
                 normal = left_orthogonal(edge) / edge_norm
                 # adjust to hull1's frame
                 center = b1.pos - b2.pos
                 # get distance from circle point to edge
-                dist = normal.dot(center - b2.verts[i]) - b1.rad
+                dist = normal.dot(center - b2.verts[idx]) - b1.rad
 
                 if dist.data[0] > best_dist.data[0]:
+                    b2.last_sat_idx = idx
                     if dist.data[0] > world.eps:
                         # exit early if separating axis found
-                        return dist, None, None, None
+                        return
                     best_dist = dist
                     best_normal = normal
                     best_pt2 = center + normal * -(dist + b1.rad)
@@ -110,9 +112,11 @@ class DiffCollisionHandler(CollisionHandler):
             # SAT for hull x hull contact
             # TODO Optimize for rectangle vs rectangle
             contact1 = self.test_separations(b1, b2, eps=world.eps)
+            b1.last_sat_idx = contact1[6]
             if contact1[0].data[0] > world.eps:
                 return
             contact2 = self.test_separations(b2, b1, eps=world.eps)
+            b2.last_sat_idx = contact2[6]
             if contact2[0].data[0] > world.eps:
                 return
             if contact2[0].data[0] > contact1[0].data[0]:
@@ -160,7 +164,7 @@ class DiffCollisionHandler(CollisionHandler):
 
         for p in pts:
             world.collisions.append((p, geom1.body, geom2.body))
-        world.collisions_debug = world.collisions  # XXX
+        # world.collisions_debug = world.collisions  # XXX
 
     @staticmethod
     def get_support(points, direction):
@@ -177,31 +181,33 @@ class DiffCollisionHandler(CollisionHandler):
     @staticmethod
     def test_separations(hull1, hull2, eps=0):
         verts1, verts2 = hull1.verts, hull2.verts
+        num_verts = len(verts1)
         best_dist = wrap_variable(-1e10)
         best_normal = None
         best_vertex = -1
-        for i in range(len(verts1)):
-            edge = verts1[(i+1) % len(verts1)] - verts1[i]
+        start_edge = hull1.last_sat_idx
+        for i in range(start_edge, num_verts + start_edge):
+            idx = i % num_verts
+            edge = verts1[(idx+1) % num_verts] - verts1[idx]
             edge_norm = edge.norm()
             normal = left_orthogonal(edge) / edge_norm
             support_point, support_idx = DiffCollisionHandler.get_support(verts2, -normal)
             # adjust to hull1's frame
             support_point = support_point + hull2.pos - hull1.pos
             # get distance from support point to edge
-            dist = normal.dot(support_point - verts1[i])
+            dist = normal.dot(support_point - verts1[idx])
 
             if dist.data[0] > best_dist.data[0]:
                 if dist.data[0] > eps:
                     # exit early if separating axis found
-                    return dist, None, None, None
+                    return dist, None, None, None, None, None, idx
                 best_dist = dist
                 best_normal = normal
                 best_pt1 = support_point + normal * -dist
                 best_pt2 = best_pt1 + hull1.pos - hull2.pos
                 best_vertex = support_idx
                 best_edge_norm = edge_norm
-                best_edge = i
-                # TODO Optimize by storing separating edge from last time
+                best_edge = idx
         return best_dist, best_pt1, best_pt2, -best_normal, \
             best_vertex, best_edge_norm, best_edge
 

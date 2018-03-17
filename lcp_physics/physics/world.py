@@ -69,6 +69,7 @@ class World:
         self.collisions = None
         self.find_collisions()
 
+    # @profile
     def step(self):
         dt = self.dt
         start_v = self.v

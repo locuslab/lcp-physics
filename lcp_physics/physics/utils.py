@@ -69,7 +69,7 @@ def cart_to_polar(cart_vec, positive=True):
     r = cart_vec.norm()
     theta = torch.atan2(cart_vec[Indices.Y], cart_vec[Indices.X])
     if theta.data[0] < 0 and positive:
-        theta += 2 * math.pi
+        theta = theta + 2 * math.pi
     return r, theta
 
 
@@ -85,6 +85,14 @@ def cross_2d(v1, v2):
 
 def left_orthogonal(v):
     return torch.cat([v[1], -v[0]])
+
+
+def rotation_matrix(ang):
+    s, c = torch.sin(ang), torch.cos(ang)
+    rot_mat = Variable(Params.TENSOR_TYPE(2, 2))
+    rot_mat[0, 0] = rot_mat[1, 1] = c
+    rot_mat[0, 1], rot_mat[1, 0] = -s, s
+    return rot_mat
 
 
 def binverse(x):

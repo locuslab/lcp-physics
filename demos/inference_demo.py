@@ -58,7 +58,7 @@ def inference_demo(screen):
         print(grad)
         print(next_mass)
         # print(learned_force(0.05))
-        if abs((last_dist - loss).data[0]) < 1e-5:
+        if abs((last_dist - loss).data[0]) < 1e-3:
             break
         last_dist = loss
         loss_hist.append(loss)
@@ -76,75 +76,6 @@ def inference_demo(screen):
 
     plot(loss_hist)
     plot(mass_hist)
-
-
-# # One ball
-# def make_world(force, mass):
-#     bodies = []
-#     joints = []
-#
-#     # target = Circle([500, 300], 30)
-#     # bodies.append(target)
-#
-#     c1 = Circle([250, 210], 30, mass=mass)
-#     bodies.append(c1)
-#     c1.add_force(ExternalForce(force))
-#
-#     # c2 = Circle([400, 250], 30)
-#     # bodies.append(c2)
-#     # # joints.append(Joint(c2, None, [500, 275]))
-#     # c2.add_no_collision(target)
-#
-#     world = World(bodies, joints, dt=DT)
-#     return world, c1
-
-# # Two ball collision
-# def make_world(forces, mass):
-#     bodies = []
-#     joints = []
-#
-#     m = 7
-#     c1 = Circle([250, 190], 30, mass=Variable(torch.DoubleTensor([m])))
-#     # c1 = Rect([250, 190], [60, 60], mass=Variable(torch.DoubleTensor([m])))
-#     bodies.append(c1)
-#     for f in forces:
-#         c1.add_force(ExternalForce(f, multiplier=100 * m))
-#
-#     c2 = Circle([350, 210], 30, mass=mass)
-#     # c2 = Rect([350, 210], [60, 60], mass=mass)
-#     bodies.append(c2)
-#     # joints.append(Joint(c2, None, [500, 275]))
-#
-#     world = World(bodies, joints, dt=DT)
-#     return world, c2
-
-
-# Two rolling balls collision
-# def make_world(forces, mass):
-#     bodies = []
-#     joints = []
-#
-#     m = 9
-#     c1 = Circle([250, 210], 30, mass=Variable(torch.DoubleTensor([m])))
-#     # c1 = Rect([250, 190], [60, 60], mass=Variable(torch.DoubleTensor([m])))
-#     bodies.append(c1)
-#     for f in forces:
-#         c1.add_force(ExternalForce(f, multiplier=100 * m))
-#     c1.add_force(ExternalForce(gravity))
-#
-#     c2 = Circle([350, 210], 30, mass=mass)
-#     # c2 = Rect([350, 210], [60, 60], mass=mass)
-#     c2.add_force(ExternalForce(gravity))
-#     bodies.append(c2)
-#     # joints.append(Joint(c2, None, [500, 275]))
-#
-#     g = Rect([500, 251], [900, 20])
-#     bodies.append(g)
-#     joints.append(Joint(g, None, [200, 251]))
-#     joints.append(Joint(g, None, [800, 251]))
-#
-#     world = World(bodies, joints, dt=DT)
-#     return world, c2
 
 
 def make_world(forces, mass):

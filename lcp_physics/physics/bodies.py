@@ -7,7 +7,8 @@ import pygame
 import torch
 from torch.autograd import Variable
 
-from .utils import Indices, Params, wrap_variable, polar_to_cart, cart_to_polar, cross_2d
+from .utils import Indices, Params, wrap_variable, polar_to_cart, \
+                   cart_to_polar, cross_2d, rotation_matrix
 
 X = Indices.X
 Y = Indices.Y
@@ -60,10 +61,12 @@ class Body(object):
     def _get_ang_inertia(self, mass):
         raise NotImplementedError
 
+    # @profile
     def move(self, dt, update_geom_rotation=True):
         new_p = self.p + self.v * dt
         self.set_p(new_p, update_geom_rotation)
 
+    # @profile
     def set_p(self, new_p, update_geom_rotation=True):
         self.p = new_p
         # Reset memory pointers
@@ -143,11 +146,13 @@ class Hull(Body):
                  col=(255, 0, 0), thickness=1):
         # center vertices around centroid
         verts = [wrap_variable(v) for v in vertices]
-        assert len(verts) > 2 and self.is_clockwise(verts)
+        assert len(verts) > 2 and self._is_clockwise(verts)
         centroid = self._get_centroid(verts)
         self.verts = [v - centroid for v in verts]
         # center position at centroid
         pos = wrap_variable(ref_point) + centroid
+        # store last separating edge for SAT
+        self.last_sat_idx = 0
         super().__init__(pos, vel=vel, mass=mass, restitution=restitution,
                          fric_coeff=fric_coeff, eps=eps, col=col, thickness=thickness)
 
@@ -158,9 +163,9 @@ class Hull(Body):
             v1 = self.verts[i]
             v2 = self.verts[(i+1) % len(self.verts)]
             norm_cross = torch.norm(cross_2d(v2, v1))
-            numerator += norm_cross * \
+            numerator = numerator + norm_cross * \
                 (torch.dot(v1, v1) + torch.dot(v1, v2) + torch.dot(v2, v2))
-            denominator += norm_cross
+            denominator = denominator + norm_cross
         return 1 / 6 * mass * numerator / denominator
 
     def _create_geom(self):
@@ -174,6 +179,7 @@ class Hull(Body):
                                          Tensor(1).zero_()]))
         self.geom.no_collision = set()
 
+    # @profile
     def set_p(self, new_p, update_geom_rotation=False):
         rot = new_p[0] - self.p[0]
         if rot.data[0] != 0:
@@ -183,11 +189,11 @@ class Hull(Body):
     def move(self, dt, update_geom_rotation=False):
         super().move(dt, update_geom_rotation=update_geom_rotation)
 
+    # @profile
     def rotate_verts(self, rot):
-        # TODO Optimize rotation
+        rot_mat = rotation_matrix(rot)
         for i in range(len(self.verts)):
-            r, theta = cart_to_polar(self.verts[i], positive=False)
-            self.verts[i] = polar_to_cart(r, theta + rot)
+            self.verts[i] = rot_mat.matmul(self.verts[i])
 
     @staticmethod
     def _get_centroid(verts):
@@ -197,17 +203,17 @@ class Hull(Body):
             v1 = verts[i]
             v2 = verts[(i + 1) % len(verts)]
             cross = cross_2d(v2, v1)
-            numerator += cross * (v1 + v2)
-            denominator += cross / 2
+            numerator = numerator + cross * (v1 + v2)
+            denominator = denominator + cross / 2
         return 1 / 6 * numerator / denominator
 
     @staticmethod
-    def is_clockwise(verts):
+    def _is_clockwise(verts):
         total = 0
         for i in range(len(verts)):
             v1 = verts[i]
             v2 = verts[(i+1) % len(verts)]
-            total += ((v2[X] - v1[X]) * (v2[Y] + v1[Y])).data[0]
+            total = total + ((v2[X] - v1[X]) * (v2[Y] + v1[Y])).data[0]
         return total < 0
 
     def draw(self, screen, draw_center=True):
@@ -232,12 +238,8 @@ class Rect(Hull):
         self.dims = wrap_variable(dims)
         pos = wrap_variable(pos)
         half_dims = self.dims / 2
-        verts = [
-            half_dims,
-            half_dims * wrap_variable([-1, 1]),
-            -half_dims,
-            half_dims * wrap_variable([1, -1]),
-        ]
+        v0, v1 = half_dims, half_dims * wrap_variable([-1, 1])
+        verts = [v0, v1, -v0, -v1]
         ref_point = pos[-2:]
         super().__init__(ref_point, verts, vel=vel, mass=mass, restitution=restitution,
                          fric_coeff=fric_coeff, eps=eps, col=col, thickness=thickness)
@@ -253,6 +255,13 @@ class Rect(Hull):
         self.geom.setPosition(torch.cat([self.pos.data, Tensor(1).zero_()]))
         self.geom.no_collision = set()
 
+    def rotate_verts(self, rot):
+        rot_mat = rotation_matrix(rot)
+        self.verts[0] = rot_mat.matmul(self.verts[0])
+        self.verts[1] = rot_mat.matmul(self.verts[1])
+        self.verts[2] = -self.verts[0]
+        self.verts[3] = -self.verts[1]
+
     def set_p(self, new_p, update_geom_rotation=True):
         super().set_p(new_p, update_geom_rotation=update_geom_rotation)
 
@@ -266,45 +275,3 @@ class Rect(Hull):
         l1 = pygame.draw.line(screen, (0, 0, 255), verts[0], verts[2])
         l2 = pygame.draw.line(screen, (0, 0, 255), verts[1], verts[3])
         return [l1, l2] + p
-
-
-# class Rect(Body):
-#     def __init__(self, pos, dims, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
-#                  fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
-#                  col=(255, 0, 0), thickness=1):
-#         self.dims = wrap_variable(dims)
-#         super().__init__(pos, vel=vel, mass=mass, restitution=restitution,
-#                          fric_coeff=fric_coeff, eps=eps, col=col, thickness=thickness)
-#
-#     def _get_ang_inertia(self, mass):
-#         return mass * torch.sum(self.dims ** 2) / 12
-#
-#     def _create_geom(self):
-#         self.geom = ode.GeomBox(None, torch.cat([self.dims.data + 2 * self.eps.data[0],
-#                                                  torch.ones(1).type_as(self.M.data)]))
-#         self.geom.setPosition(torch.cat([self.pos.data, Tensor(1).zero_()]))
-#         self.geom.no_collision = set()
-#
-#     def draw(self, screen):
-#         # counter clockwise vertices, p1 is top right, origin center of mass
-#         half_dims = self.dims / 2
-#         r, theta = cart_to_polar(half_dims)
-#         p1 = polar_to_cart(r, self.rot.data[0] + theta[0])
-#         p2 = polar_to_cart(r, self.rot.data[0] + math.pi - theta[0])
-#         p3 = polar_to_cart(r, self.rot.data[0] + math.pi + theta[0])
-#         p4 = polar_to_cart(r, self.rot.data[0] + 2 * math.pi - theta[0])
-#
-#         # points in global frame
-#         pts = [(p1 + self.pos).data.numpy(), (p2 + self.pos).data.numpy(),
-#                (p3 + self.pos).data.numpy(), (p4 + self.pos).data.numpy()]
-#
-#         # draw diagonals
-#         l1 = pygame.draw.line(screen, (0, 0, 255), pts[0], pts[2])
-#         l2 = pygame.draw.line(screen, (0, 0, 255), pts[1], pts[3])
-#         # draw center
-#         # c = pygame.draw.circle(screen, (0, 0, 255),
-#         #                        self.pos.data.numpy().astype(int), 2)
-#
-#         # draw rectangle
-#         r = pygame.draw.polygon(screen, self.col, pts, self.thickness)
-#         return [r, l1, l2]
