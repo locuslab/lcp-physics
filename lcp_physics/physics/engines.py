@@ -53,22 +53,23 @@ class PdipmEngine(Engine):
             else:
                 P = world.M()
             if self.cached_inverse is None:
-                inv = torch.inverse(P)
+                try:
+                    inv = torch.inverse(P)
+                except RuntimeError:
+                    # XXX
+                    # print('\nRegularizing singular matrix.\n')
+                    inv = torch.inverse(P + Variable(torch.eye(P.size(0),
+                                        P.size(1)).type_as(P.data) * 1e-10))
                 if world.static_inverse:
                     self.cached_inverse = inv
             else:
                 inv = self.cached_inverse
-            # try:
             x = torch.matmul(inv, u)  # Eq. 2.41
-            # except RuntimeError:
-            #     print('\nRegularizing singular matrix.\n')
-            #     x = torch.matmul(torch.inverse(P + Variable(torch.eye(P.size(0),
-            #             P.size(1)).type_as(P.data) * 1e-10)), u)
         else:
             # Solve Mixed LCP (Kline 2.7.2)
             # TODO Organize
             Jc = world.Jc()
-            v = torch.matmul(Jc, world.get_v() * world.restitutions)
+            v = torch.matmul(Jc, world.get_v()) * world.restitutions()
             TM = world.M().unsqueeze(0)
             if neq > 0:
                 TJe = Je.unsqueeze(0)
@@ -109,7 +110,7 @@ class PdipmEngine(Engine):
             ge = torch.matmul(Je, new_v)
             gc = None
             if Jc is not None:
-                gc = torch.matmul(Jc, new_v) + torch.matmul(Jc, new_v * -world.restitutions)
+                gc = torch.matmul(Jc, new_v) + torch.matmul(Jc, new_v) * -world.restitutions()
             dp = self.post_stabilization(world.M(), Je, Jc, ge, gc)
             new_v = (new_v - dp).squeeze(0)
         return new_v

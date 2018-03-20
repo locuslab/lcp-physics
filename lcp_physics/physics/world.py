@@ -61,11 +61,6 @@ class World:
 
         self.set_v(torch.cat([b.v for b in bodies]))
 
-        self.restitutions = Variable(Tensor(len(self.v)))
-        for i in range(len(bodies)):
-            self.restitutions[i * self.vec_len:(i + 1) * self.vec_len] = \
-                bodies[i].restitution.repeat(3)
-
         self.collisions = None
         self.find_collisions()
 
@@ -122,6 +117,14 @@ class World:
         self.collisions = []
         # ODE collision detection
         self.space.collide([self], self.collision_callback)
+
+    def restitutions(self):
+        restitutions = Variable(Tensor(len(self.collisions)))
+        for i, c in enumerate(self.collisions):
+            r1 = self.bodies[c[1]].restitution
+            r2 = self.bodies[c[2]].restitution
+            restitutions[i] = (r1 + r2) / 2
+        return restitutions
 
     def M(self):
         return self._M
@@ -195,7 +198,7 @@ class World:
         for i, collision in enumerate(self.collisions):
             i1 = collision[1]
             i2 = collision[2]
-            mu[i] = self.bodies[i1].fric_coeff * self.bodies[i2].fric_coeff
+            mu[i] = torch.sqrt(self.bodies[i1].fric_coeff * self.bodies[i2].fric_coeff)
         return torch.diag(mu)
 
     def E(self):
@@ -257,7 +260,7 @@ class BatchWorld:
         self._v = None
         self.v_changed = True
         self.collisions = self.has_collisions()
-        self._restitutions = torch.cat([w.restitutions.unsqueeze(0) for w in self.worlds], dim=0)
+        self._restitutions = torch.cat([w.restitutions().unsqueeze(0) for w in self.worlds], dim=0)
 
     def step(self):
         dt = self.dt
@@ -318,7 +321,7 @@ class BatchWorld:
     def restitutions(self, num_colls=None):
         # TODO Organize / consolidate on other class
         if num_colls is not None:
-            r = torch.cat([w.restitutions.unsqueeze(0) for w in self.worlds if len(w.collisions) == num_colls], dim=0)
+            r = torch.cat([w.restitutions().unsqueeze(0) for w in self.worlds if len(w.collisions) == num_colls], dim=0)
             return r
         else:
             return self._restitutions

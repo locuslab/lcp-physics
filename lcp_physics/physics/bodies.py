@@ -7,8 +7,7 @@ import pygame
 import torch
 from torch.autograd import Variable
 
-from .utils import Indices, Params, wrap_variable, polar_to_cart, \
-                   cart_to_polar, cross_2d, rotation_matrix
+from .utils import Indices, Params, wrap_variable, cross_2d, rotation_matrix
 
 X = Indices.X
 Y = Indices.Y
@@ -269,9 +268,11 @@ class Rect(Hull):
         super().move(dt, update_geom_rotation=update_geom_rotation)
 
     def draw(self, screen):
-        p = super().draw(screen, draw_center=False)
         # draw diagonals
         verts = [v + self.pos for v in self.verts]
         l1 = pygame.draw.line(screen, (0, 0, 255), verts[0], verts[2])
         l2 = pygame.draw.line(screen, (0, 0, 255), verts[1], verts[3])
+
+        # draw rectangle
+        p = super().draw(screen, draw_center=False)
         return [l1, l2] + p

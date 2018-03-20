@@ -6,7 +6,7 @@ import torch
 from torch.autograd import Variable
 
 from .bodies import Circle
-from .utils import Indices, Params, wrap_variable, cart_to_polar, polar_to_cart, left_orthogonal
+from .utils import Indices, Params, wrap_variable, left_orthogonal
 
 
 X = Indices.X
@@ -81,6 +81,7 @@ class DiffCollisionHandler(CollisionHandler):
             if is_circle_g2:
                 # set circle to b1
                 b1, b2 = b2, b1
+            # TODO Shallow penetration with GJK
             best_dist = wrap_variable(-1e10)
             num_verts = len(b2.verts)
             start_edge = b2.last_sat_idx
@@ -243,7 +244,7 @@ class DiffCollisionHandler(CollisionHandler):
             clipped_verts.append(verts[1])
 
         # If the points are on different sides of the plane
-        if distance0.data[0] * distance1.data[0] < 0.0:
+        if distance0.data[0] * distance1.data[0] < 0.0 or len(clipped_verts) < 2:
             # Find intersection point of edge and plane
             interp = distance0 / (distance0 - distance1)
 

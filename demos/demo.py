@@ -52,6 +52,9 @@ def debug_demo(screen):
     r.add_force(ExternalForce(gravity, multiplier=-100))
     bodies.append(r)
 
+    clock = Circle([975, 575], 20, vel=[1, 0, 0])
+    bodies.append(clock)
+
     world = World(bodies, joints, dt=DT)
     run_world(world, run_time=10, screen=screen)
 
@@ -83,37 +86,26 @@ def chain_demo(screen):
 
     recorder = None
     # recorder = Recorder(DT, screen)
-    world = World(bodies, joints, dt=DT / 5)
+    world = World(bodies, joints, dt=DT)
     run_world(world, run_time=TIME * 2, screen=screen, recorder=recorder)
 
 
 def slide_demo(screen):
     bodies = []
     joints = []
+    restitution = Params.DEFAULT_RESTITUTION
+    fric_coeff = 0.15
 
     inclination = math.pi / 32
-    r = Rect([inclination, 500, 300], [900, 10])
+    r = Rect([inclination, 500, 300], [900, 10],
+             restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(r)
     joints.append(TotalConstraint(r))
 
-    # r = Circle([100, 100], 30)
-    r = Rect([100, 100], [60, 60])
+    r = Rect([100, 100], [60, 60],
+             restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(r)
     r.add_force(ExternalForce(gravity, multiplier=100))
-    # r.add_force(ExternalForce(vert_impulse, multiplier=1000))
-
-    # c = Circle([100, 150], 30)
-    # bodies.append(c)
-    # c.add_force(ExternalForce(gravity, multiplier=100))
-
-    # c = Circle([50, 550], 30)
-    # c.add_force(ExternalForce(rot_impulse, multiplier=1000))
-    # bodies.append(c)
-
-    # XXX
-    # c = Circle([875, 100], 30)
-    # bodies.append(c)
-    # c.add_force(ExternalForce(gravity, multiplier=100))
 
     recorder = None
     # recorder = Recorder(DT, screen)

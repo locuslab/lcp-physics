@@ -17,7 +17,7 @@ class Params:
     # Default simulation parameters
     DEFAULT_RESTITUTION = 0.5
 
-    DEFAULT_FRIC_COEFF = 0.35
+    DEFAULT_FRIC_COEFF = 0.9
     DEFAULT_FRIC_DIRS = 2
 
     DEFAULT_FPS = 30
