@@ -444,7 +444,7 @@ class BatchWorld:
 
 
 def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
-              screen=None, recorder=None):
+              print_time=True, screen=None, recorder=None):
     """Helper function to run a simulation forward once a world is created.
     """
     # If in batched mode don't display simulation
@@ -513,5 +513,6 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                 # elapsed_time = time.time() - start_time
 
         elapsed_time = time.time() - start_time
-        print('\r ', '{} / {}  {} '.format(int(world.t), int(elapsed_time),
-                                           1 / animation_dt), end='')
+        if print_time:
+            print('\r ', '{} / {}  {} '.format(int(world.t), int(elapsed_time),
+                                               1 / animation_dt), end='')
