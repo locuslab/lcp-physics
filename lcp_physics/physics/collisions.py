@@ -132,6 +132,8 @@ class DiffCollisionHandler(CollisionHandler):
                 clip_plane = left_orthogonal(normal)
                 clipped_verts = self.clip_segment_to_line(incident_verts, clip_plane,
                                                           half_edge_norm)
+                if len(clipped_verts) < 2:
+                    return
                 clipped_verts = self.clip_segment_to_line(clipped_verts, -clip_plane,
                                                           half_edge_norm)
                 pts = []
@@ -153,6 +155,8 @@ class DiffCollisionHandler(CollisionHandler):
                 clip_plane = left_orthogonal(normal)
                 clipped_verts = self.clip_segment_to_line(incident_verts, clip_plane,
                                                           half_edge_norm)
+                if len(clipped_verts) < 2:
+                    return
                 clipped_verts = self.clip_segment_to_line(clipped_verts, -clip_plane,
                                                           half_edge_norm)
                 pts = []

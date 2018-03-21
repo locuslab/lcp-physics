@@ -5,8 +5,8 @@ import ode
 import torch
 from torch.autograd import Variable
 
-import lcp_physics.physics.engines as engines_module
-import lcp_physics.physics.collisions as collisions_module
+from . import engines as engines_module
+from . import collisions as collisions_module
 from lcp_physics.physics.constraints import Joint
 from .utils import Indices, Params, cross_2d, get_instance
 
