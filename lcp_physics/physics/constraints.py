@@ -15,6 +15,7 @@ Tensor = Params.TENSOR_TYPE
 
 class Joint:
     def __init__(self, body1, body2, pos):
+        self.static = False
         self.num_constraints = 2
         self.body1 = body1
         self.body2 = body2
@@ -53,14 +54,51 @@ class Joint:
                                    self.pos.data.numpy().astype(int), 2)]
 
 
+class FixedJoint:
+    def __init__(self, body1, body2):
+        self.static = False
+        self.num_constraints = 3
+        self.body1 = body1
+        self.body2 = body2
+        self.pos = body1.pos
+        self.pos1 = self.pos - self.body1.pos
+        self.rot1 = wrap_variable(0)
+        self.rot2 = None
+        self.pos2 = self.pos - self.body2.pos
+        self.rot2 = self.body2.p[0] - self.body1.p[0]  # inverted sign?
+
+    def J(self):
+        J1 = torch.cat([torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1),
+                        Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
+        J1 = torch.cat([J1, wrap_variable([1, 0, 0]).unsqueeze(0)], dim=0)
+        J2 = torch.cat([torch.cat([self.pos2[Y], -self.pos2[X]]).unsqueeze(1),
+                        -Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
+        J2 = torch.cat([J2, wrap_variable([-1, 0, 0]).unsqueeze(0)], dim=0)
+        return J1, J2
+
+    def move(self, dt):
+        self.update_pos()
+
+    def update_pos(self):
+        self.pos = self.body1.pos
+        self.pos1 = self.pos - self.body1.pos
+        if self.body2 is not None:
+            # keep position on body1 as reference
+            self.pos2 = self.pos - self.body2.pos
+
+    def draw(self, screen):
+        start = self.body1.pos.data.numpy().astype(int)
+        end = self.body2.pos.data.numpy().astype(int)
+        return [pygame.draw.line(screen, (0, 255, 0), start, end, 2)]
+
+
 class YConstraint:
     def __init__(self, body1):
+        self.static = True
         self.num_constraints = 1
         self.body1 = body1
         self.pos = body1.pos
-        self.pos1 = self.pos - self.body1.pos
-        self.r1, self.rot1 = cart_to_polar(self.pos1)
-
+        self.rot1 = self.body1.p[0]
         self.body2 = self.rot2 = None
 
     def J(self):
@@ -68,12 +106,11 @@ class YConstraint:
         return J, None
 
     def move(self, dt):
-        self.rot1 = self.rot1 + self.body1.v[0] * dt
         self.update_pos()
 
     def update_pos(self):
-        self.pos1 = polar_to_cart(self.r1, self.rot1)
-        self.pos = self.body1.pos + self.pos1
+        self.pos = self.body1.pos
+        self.rot1 = self.body1.p[0]
 
     def draw(self, screen):
         pos = self.pos.data.numpy().astype(int)
@@ -82,12 +119,11 @@ class YConstraint:
 
 class XConstraint:
     def __init__(self, body1):
+        self.static = True
         self.num_constraints = 1
         self.body1 = body1
         self.pos = body1.pos
-        self.pos1 = self.pos - self.body1.pos
-        self.r1, self.rot1 = cart_to_polar(self.pos1)
-
+        self.rot1 = self.body1.p[0]
         self.body2 = self.rot2 = None
 
     def J(self):
@@ -95,12 +131,11 @@ class XConstraint:
         return J, None
 
     def move(self, dt):
-        self.rot1 = self.rot1 + self.body1.v[0] * dt
         self.update_pos()
 
     def update_pos(self):
-        self.pos1 = polar_to_cart(self.r1, self.rot1)
-        self.pos = self.body1.pos + self.pos1
+        self.pos = self.body1.pos
+        self.rot1 = self.body1.p[0]
 
     def draw(self, screen):
         pos = self.pos.data.numpy().astype(int)
@@ -109,12 +144,11 @@ class XConstraint:
 
 class RotConstraint:
     def __init__(self, body1):
+        self.static = True
         self.num_constraints = 1
         self.body1 = body1
         self.pos = body1.pos
-        self.pos1 = self.pos - self.body1.pos
-        self.r1, self.rot1 = cart_to_polar(self.pos1)
-
+        self.rot1 = self.body1.p[0]
         self.body2 = self.rot2 = None
 
     def J(self):
@@ -122,12 +156,11 @@ class RotConstraint:
         return J, None
 
     def move(self, dt):
-        self.rot1 = self.rot1 + self.body1.v[0] * dt
         self.update_pos()
 
     def update_pos(self):
-        self.pos1 = polar_to_cart(self.r1, self.rot1)
-        self.pos = self.body1.pos + self.pos1
+        self.pos = self.body1.pos
+        self.rot1 = self.body1.p[0]
 
     def draw(self, screen):
         return [pygame.draw.circle(screen, (0, 255, 0),
@@ -137,6 +170,7 @@ class RotConstraint:
 
 class TotalConstraint:
     def __init__(self, body1):
+        self.static = True
         self.num_constraints = 3
         self.body1 = body1
         self.pos = body1.pos

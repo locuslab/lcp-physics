@@ -111,7 +111,7 @@ class DiffCollisionHandler(CollisionHandler):
             pts = [(best_normal, best_pt1, best_pt2, -best_dist)]
         else:
             # SAT for hull x hull contact
-            # TODO Optimize for rectangle vs rectangle
+            # TODO Optimize for rectangle vs rectangle?
             contact1 = self.test_separations(b1, b2, eps=world.eps)
             b1.last_sat_idx = contact1[6]
             if contact1[0].data[0] > world.eps:

@@ -7,7 +7,6 @@ from torch.autograd import Variable
 
 from . import engines as engines_module
 from . import collisions as collisions_module
-from lcp_physics.physics.constraints import Joint
 from .utils import Indices, Params, cross_2d, get_instance
 
 
@@ -50,7 +49,7 @@ class World:
             i2 = bodies.index(b2) if b2 else None
             self.joints.append((j, i1, i2))
             self.num_constraints += j.num_constraints
-            if isinstance(j, Joint):
+            if not j.static:
                 self.static_inverse = False
 
         M_size = bodies[0].M.size(0)
@@ -480,7 +479,7 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                 for joint in world.joints:
                     update_list += joint[0].draw(screen)
 
-                # XXX visualize collision points and normal for debug
+                # Visualize collision points and normal for debug
                 # if world.collisions_debug:
                 #     for c in world.collisions_debug:
                 #         (normal, p1, p2, penetration), b1, b2 = c
