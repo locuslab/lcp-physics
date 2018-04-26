@@ -12,6 +12,7 @@ from .utils import Indices, Params, cross_2d, get_instance
 
 X, Y = Indices.X, Indices.Y
 DIM = Params.DIM
+TOL = 1e-12
 
 Tensor = Params.TENSOR_TYPE
 
@@ -63,14 +64,23 @@ class World:
         self.collisions = None
         self.find_collisions()
 
-    # @profile
-    def step(self):
+    def step(self, fixed_dt=False):
         dt = self.dt
+        if fixed_dt:
+            end_t = self.t + self.dt
+            while self.t < end_t:
+                dt = end_t - self.t
+                self.step_dt(dt)
+        else:
+            self.step_dt(dt)
+
+    # @profile
+    def step_dt(self, dt):
         start_v = self.v
         start_p = torch.cat([b.p for b in self.bodies])
         start_rot_joints = [(j[0].rot1, j[0].rot2) for j in self.joints]
         start_collisions = self.collisions
-        assert all([c[0][3].data[0] <= 0 for c in self.collisions]), \
+        assert all([c[0][3].data[0] <= TOL for c in self.collisions]), \
             'Interpenetration at beginning of step'
         while True:
             new_v = self.engine.solve_dynamics(self, dt, self.post_stab)
@@ -81,7 +91,7 @@ class World:
             for joint in self.joints:
                 joint[0].move(dt)
             self.find_collisions()
-            if all([c[0][3].data[0] <= 0 for c in self.collisions]):
+            if all([c[0][3].data[0] <= TOL for c in self.collisions]):
                 break
             else:
                 dt /= 2

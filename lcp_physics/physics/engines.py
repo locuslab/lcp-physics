@@ -18,9 +18,6 @@ Tensor = Params.TENSOR_TYPE
 
 
 class Engine:
-    def __init__(self):
-        pass
-
     def solve_dynamics(self, world, dt, stabilization=False):
         raise NotImplementedError
 

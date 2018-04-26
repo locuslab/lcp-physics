@@ -104,6 +104,7 @@ def slide_demo(screen):
 
     r = Rect([100, 100], [60, 60],
              restitution=restitution, fric_coeff=fric_coeff)
+    # r = Hull([100, 100], [[30, 30], [-30, 30], [-30, -30], [30, -30]])
     bodies.append(r)
     r.add_force(ExternalForce(gravity, multiplier=100))
 
