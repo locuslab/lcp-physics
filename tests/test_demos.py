@@ -92,7 +92,7 @@ class TestDemos(unittest.TestCase):
         bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
 
         # make projectile
-        c = Circle([50, 500], 20)
+        c = Circle([50, 500], 20, restitution=1)
         bodies.append(c)
         c.add_force(ExternalForce(hor_impulse, multiplier=1000))
 
