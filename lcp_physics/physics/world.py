@@ -490,6 +490,7 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                     update_list += joint[0].draw(screen)
 
                 # Visualize collision points and normal for debug
+                # (Uncomment collisions_debug line in collision handler)
                 # if world.collisions_debug:
                 #     for c in world.collisions_debug:
                 #         (normal, p1, p2, penetration), b1, b2 = c

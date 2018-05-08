@@ -99,7 +99,6 @@ class PdipmEngine(Engine):
             # measured by number of iterations performed on current step (world.dt / dt)
             max_iter = max(int(20 / (world.dt / dt)), 3)
             x = -self.lcp_solver(maxIter=max_iter, verbose=-1)(TM, Tu, G, h, TJe, b, F)
-
         new_v = x[:world.vec_len * len(world.bodies)].squeeze(0)
 
         # Post-stabilization

@@ -1,4 +1,5 @@
 import math
+import random
 
 import ode
 
@@ -77,33 +78,65 @@ class DiffCollisionHandler(CollisionHandler):
             p2 = normal * (b2.rad - penetration / 2)
             pts = [(normal, p1, p2, penetration)]
         elif is_circle_g1 or is_circle_g2:
-            # SAT for circle vs hull
             if is_circle_g2:
                 # set circle to b1
                 b1, b2 = b2, b1
-            # TODO Shallow penetration with GJK
-            best_dist = wrap_variable(-1e10)
-            num_verts = len(b2.verts)
-            start_edge = b2.last_sat_idx
-            for i in range(start_edge, num_verts + start_edge):
-                idx = i % num_verts
-                edge = b2.verts[(idx+1) % num_verts] - b2.verts[idx]
-                edge_norm = edge.norm()
-                normal = left_orthogonal(edge) / edge_norm
-                # adjust to hull1's frame
-                center = b1.pos - b2.pos
-                # get distance from circle point to edge
-                dist = normal.dot(center - b2.verts[idx]) - b1.rad
 
-                if dist.data[0] > best_dist.data[0]:
-                    b2.last_sat_idx = idx
-                    if dist.data[0] > world.eps:
-                        # exit early if separating axis found
-                        return
-                    best_dist = dist
-                    best_normal = normal
-                    best_pt2 = center + normal * -(dist + b1.rad)
-                    best_pt1 = best_pt2 + b2.pos - b1.pos
+            # Shallow penetration with GJK
+            test_point = b1.pos - b2.pos
+            simplex = [random.choice(b2.verts)]
+            while True:
+                closest, ids_used = self.get_closest(test_point, simplex)
+                if len(ids_used) == 3:
+                    break
+                simplex = [simplex[idx] for idx in ids_used]  # remove unused points
+                if len(ids_used) == 2:
+                    # use orthogonal when closest is in segment
+                    search_dir = left_orthogonal(simplex[0] - simplex[1])
+                    if search_dir.dot(test_point - simplex[0]).data[0] < 0:
+                        search_dir = -search_dir
+                else:
+                    search_dir = test_point - closest
+                if search_dir.data[0] == 0 and search_dir.data[1] == 0:
+                    break
+                support, _ = DiffCollisionHandler.get_support(b2.verts, search_dir)
+                if support in set(simplex):
+                    break
+                simplex.append(support)
+            if len(ids_used) < 3:
+                best_pt2 = closest
+                closest = closest + b2.pos
+                best_pt1 = closest - b1.pos
+                best_dist = torch.norm(closest - b1.pos) - b1.rad
+                if best_dist.data[0] > world.eps:
+                    return
+                # normal points from closest point to circle center
+                best_normal = -best_pt1 / torch.norm(best_pt1)
+            else:
+                # SAT for circle vs hull if deep penetration
+                best_dist = wrap_variable(-1e10)
+                num_verts = len(b2.verts)
+                start_edge = b2.last_sat_idx
+                for i in range(start_edge, num_verts + start_edge):
+                    idx = i % num_verts
+                    edge = b2.verts[(idx+1) % num_verts] - b2.verts[idx]
+                    edge_norm = edge.norm()
+                    normal = left_orthogonal(edge) / edge_norm
+                    # adjust to hull1's frame
+                    center = b1.pos - b2.pos
+                    # get distance from circle point to edge
+                    dist = normal.dot(center - b2.verts[idx]) - b1.rad
+
+                    if dist.data[0] > best_dist.data[0]:
+                        b2.last_sat_idx = idx
+                        if dist.data[0] > world.eps:
+                            # exit early if separating axis found
+                            return
+                        best_dist = dist
+                        best_normal = normal
+                        best_pt2 = center + normal * -(dist + b1.rad)
+                        best_pt1 = best_pt2 + b2.pos - b1.pos
+
             if is_circle_g2:
                 # flip back values for circle as g2
                 best_normal = -best_normal
@@ -257,3 +290,63 @@ class DiffCollisionHandler(CollisionHandler):
             clipped_verts.append(cv)
 
         return clipped_verts
+
+    @staticmethod
+    def get_closest(point, simplex):
+        if len(simplex) == 1:
+            return simplex[0], [0]
+        elif len(simplex) == 2:
+            u, v = DiffCollisionHandler.get_barycentric_coords(point, simplex)
+            if u.data[0] <= 0:
+                return simplex[1], [1]
+            elif v.data[0] <= 0:
+                return simplex[0], [0]
+            else:
+                return u * simplex[0] + v * simplex[1], [0, 1]
+        elif len(simplex) == 3:
+            uAB, vAB = DiffCollisionHandler.get_barycentric_coords(point, simplex[0:2])
+            uBC, vBC = DiffCollisionHandler.get_barycentric_coords(point, simplex[1:])
+            uCA, vCA = DiffCollisionHandler.get_barycentric_coords(point, [simplex[2], simplex[0]])
+            uABC, vABC, wABC = DiffCollisionHandler.get_barycentric_coords(point, simplex)
+
+            if vAB.data[0] <= 0 and uCA.data[0] <= 0:
+                return simplex[0], [0]
+            elif vBC.data[0] <= 0 and uAB.data[0] <= 0:
+                return simplex[1], [1]
+            elif vCA.data[0] <= 0 and uBC.data[0] <= 0:
+                return simplex[2], [2]
+            elif uAB.data[0] > 0 and vAB.data[0] > 0 and wABC.data[0] <= 0:
+                return uAB * simplex[0] + vAB * simplex[1], [0, 1]
+            elif uBC.data[0] > 0 and vBC.data[0] > 0 and uABC.data[0] <= 0:
+                return uBC * simplex[1] + vBC * simplex[2], [1, 2]
+            elif uCA.data[0] > 0 and vCA.data[0] > 0 and vABC.data[0] <= 0:
+                return uCA * simplex[2] + vCA * simplex[0], [2, 0]
+            elif uABC.data[0] > 0 and vABC.data[0] > 0 and wABC.data[0] > 0:
+                return point, [0, 1, 2]
+            else:
+                print(uAB, vAB, uBC, vBC, uCA, vCA, uABC, vABC, wABC)
+                raise ValueError('Point does not satisfy any condition in get_closest()')
+        else:
+            raise ValueError('Simplex should not have more than 3 points in GJK.')
+
+    @staticmethod
+    def get_barycentric_coords(point, verts):
+        if len(verts) == 2:
+            diff = verts[1] - verts[0]
+            diff_norm = torch.norm(diff)
+            normalized_diff = diff / diff_norm
+            u = torch.dot(verts[1] - point, normalized_diff) / diff_norm
+            v = torch.dot(point - verts[0], normalized_diff) / diff_norm
+            return u, v
+        elif len(verts) == 3:
+            # TODO Area method instead of LinAlg
+            M = torch.cat([
+                torch.cat([verts[0], Variable(torch.ones(1)).type_as(verts[0])]).unsqueeze(1),
+                torch.cat([verts[1], Variable(torch.ones(1)).type_as(verts[1])]).unsqueeze(1),
+                torch.cat([verts[2], Variable(torch.ones(1)).type_as(verts[2])]).unsqueeze(1),
+            ], dim=1)
+            invM = torch.inverse(M)
+            uvw = torch.matmul(invM, torch.cat([point, Variable(torch.ones(1)).type_as(point)]).unsqueeze(1))
+            return uvw
+        else:
+            raise ValueError('Barycentric coords only works for 2 or 3 points')
