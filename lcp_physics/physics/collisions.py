@@ -89,19 +89,19 @@ class DiffCollisionHandler(CollisionHandler):
                 closest, ids_used = self.get_closest(test_point, simplex)
                 if len(ids_used) == 3:
                     break
-                simplex = [simplex[idx] for idx in ids_used]  # remove unused points
                 if len(ids_used) == 2:
                     # use orthogonal when closest is in segment
-                    search_dir = left_orthogonal(simplex[0] - simplex[1])
-                    if search_dir.dot(test_point - simplex[0]).data[0] < 0:
+                    search_dir = left_orthogonal(simplex[ids_used[0]] - simplex[ids_used[1]])
+                    if search_dir.dot(test_point - simplex[ids_used[0]]).data[0] < 0:
                         search_dir = -search_dir
                 else:
                     search_dir = test_point - closest
                 if search_dir.data[0] == 0 and search_dir.data[1] == 0:
                     break
-                support, _ = DiffCollisionHandler.get_support(b2.verts, search_dir)
+                support, _ = self.get_support(b2.verts, search_dir)
                 if support in set(simplex):
                     break
+                simplex = [simplex[idx] for idx in ids_used]  # remove unused points
                 simplex.append(support)
             if len(ids_used) < 3:
                 best_pt2 = closest
