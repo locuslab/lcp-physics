@@ -133,6 +133,7 @@ class World:
             r1 = self.bodies[c[1]].restitution
             r2 = self.bodies[c[2]].restitution
             restitutions[i] = (r1 + r2) / 2
+            # restitutions[i] = math.sqrt(r1 * r2)
         return restitutions
 
     def M(self):
@@ -200,7 +201,7 @@ class World:
     def mu(self):
         return self._memoized_mu(*[(c[1], c[2]) for c in self.collisions])
 
-    @lru_cache()
+    # @lru_cache()
     def _memoized_mu(self, *collisions):
         # collisions is argument so that lru_cache works
         mu = Variable(Tensor(len(self.collisions)).zero_())
@@ -213,7 +214,7 @@ class World:
     def E(self):
         return self._memoized_E(len(self.collisions))
 
-    @lru_cache()
+    # @lru_cache()
     def _memoized_E(self, num_collisions):
         n = self.fric_dirs * num_collisions
         E = Tensor(n, num_collisions).zero_()
