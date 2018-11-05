@@ -7,7 +7,7 @@ from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import TotalConstraint, FixedJoint
 from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params, Recorder
-from lcp_physics.physics.world import World, BatchWorld, run_world
+from lcp_physics.physics.world import World, run_world
 
 
 TIME = 20

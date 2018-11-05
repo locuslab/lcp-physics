@@ -139,6 +139,10 @@ class TestDemos(unittest.TestCase):
         run_world(world, run_time=TIME, screen=self.screen, recorder=recorder)
 
     def testFric(self):
+
+        restitution = 0.75
+        fric_coeff = 1
+
         bodies = []
         joints = []
 
@@ -148,30 +152,33 @@ class TestDemos(unittest.TestCase):
             else:
                 return ExternalForce.ZEROS
 
-        r = Rect([400, 400], [900, 10])
+        r = Rect([400, 400], [900, 10], restitution=restitution, fric_coeff=fric_coeff)
         bodies.append(r)
         r.add_force(ExternalForce(timed_force, multiplier=100))
         r.add_force(ExternalForce(gravity, multiplier=100))
 
-        c = Circle([200, 364], 30)
+        c = Circle([200, 364], 30, restitution=restitution, fric_coeff=fric_coeff)
         bodies.append(c)
         c.add_force(ExternalForce(gravity, multiplier=100))
 
-        c = Circle([50, 436], 30)
+        c = Circle([50, 436], 30, restitution=restitution, fric_coeff=fric_coeff)
         bodies.append(c)
         joints.append(XConstraint(c))
         joints.append(YConstraint(c))
-        c = Circle([800, 436], 30)
+        c = Circle([800, 436], 30, restitution=restitution, fric_coeff=fric_coeff)
         bodies.append(c)
         joints.append(XConstraint(c))
         joints.append(YConstraint(c))
 
+        clock = Circle([975, 575], 20, vel=[1, 0, 0])
+        bodies.append(clock)
+
         recorder = None
-        # recorder = Recorder(DT, self.screen)
+        # recorder = Recorder(DT, screen)
         world = World(bodies, joints, dt=DT)
         run_world(world, run_time=10, screen=self.screen, recorder=recorder)
 
-    def testGrad(self):
+    def testAGrad(self):
         def make_world(learned_force):
             bodies = []
             joints = []

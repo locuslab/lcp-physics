@@ -16,12 +16,13 @@ from lcp_physics.physics.utils import Recorder, plot, Params
 TIME = 40
 MASS_EPS = 1e-7
 DT = Params.DEFAULT_DT
+NUM_LINKS = 10
 
 
 def inference_demo(screen):
     forces = [hor_impulse]
     ground_truth_mass = Variable(torch.DoubleTensor([7]))
-    world, c = make_world(forces, ground_truth_mass)
+    world, c = make_world(forces, ground_truth_mass, num_links=NUM_LINKS)
 
     rec = None
     # rec = Recorder(DT, screen)
@@ -37,7 +38,7 @@ def inference_demo(screen):
     mass_hist = [next_mass]
     last_dist = 1e10
     for i in range(max_iter):
-        world, c = make_world(forces, next_mass)
+        world, c = make_world(forces, next_mass, num_links=NUM_LINKS)
         # world.load_state(initial_state)
         # world.reset_engine()
         positions = positions_run_world(world, run_time=10, screen=None)
@@ -64,7 +65,7 @@ def inference_demo(screen):
         loss_hist.append(loss)
         mass_hist.append(next_mass)
 
-    world = make_world(forces, next_mass)[0]
+    world = make_world(forces, next_mass, num_links=NUM_LINKS)[0]
     # world.load_state(initial_state)
     # world.reset_engine()
     rec = None
@@ -78,7 +79,7 @@ def inference_demo(screen):
     plot(mass_hist)
 
 
-def make_world(forces, mass):
+def make_world(forces, mass, num_links=10):
     bodies = []
     joints = []
 
@@ -86,8 +87,8 @@ def make_world(forces, mass):
     r = Rect([300, 50], [20, 60])
     bodies.append(r)
     joints.append(Joint(r, None, [300, 30]))
-    for i in range(1, 10):
-        if i < 9:
+    for i in range(1, num_links):
+        if i < num_links - 1:
             r = Rect([300, 50 + 50 * i], [20, 60])
         else:
             r = Rect([300, 50 + 50 * i], [20, 60], mass=mass)
@@ -98,7 +99,7 @@ def make_world(forces, mass):
 
     # make projectile
     m = 13
-    c1 = Circle([50, 500], 20)
+    c1 = Circle([50, bodies[-1].pos.data[1]], 20)  # same Y as last chain link
     bodies.append(c1)
     for f in forces:
         c1.add_force(ExternalForce(f, multiplier=100 * m))
@@ -174,5 +175,6 @@ if __name__ == '__main__':
         screen = pygame.display.set_mode((width, height), pygame.DOUBLEBUF)
         screen.set_alpha(None)
         pygame.display.set_caption('2D Engine')
+    screen = None
 
     inference_demo(screen)

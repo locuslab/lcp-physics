@@ -7,7 +7,7 @@ from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint, RotConstraint, TotalConstraint
 from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params, Recorder
-from lcp_physics.physics.world import World, BatchWorld, run_world
+from lcp_physics.physics.world import World, run_world
 
 TIME = 20
 DT = Params.DEFAULT_DT
@@ -55,7 +55,7 @@ def debug_demo(screen):
     clock = Circle([975, 575], 20, vel=[1, 0, 0])
     bodies.append(clock)
 
-    world = World(bodies, joints, dt=DT)
+    world = World(bodies, joints, dt=DT, post_stab=True)
     run_world(world, run_time=10, screen=screen)
 
 
@@ -74,19 +74,19 @@ def chain_demo(screen):
         bodies.append(r)
         joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
         bodies[-1].add_no_collision(bodies[-2])
-    bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
+        bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
 
     # make projectile
     c = Circle([50, 500], 20, restitution=restitution)
     bodies.append(c)
-    c.add_force(ExternalForce(hor_impulse, multiplier=1000))
+    c.add_force(ExternalForce(hor_impulse, multiplier=2000))
 
     clock = Circle([975, 575], 20, vel=[1, 0, 0])
     bodies.append(clock)
 
     recorder = None
     # recorder = Recorder(DT, screen)
-    world = World(bodies, joints, dt=DT)
+    world = World(bodies, joints, dt=DT, post_stab=True)
     run_world(world, run_time=TIME * 2, screen=screen, recorder=recorder)
 
 

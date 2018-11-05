@@ -22,48 +22,25 @@ class LCPFunction(Function):
         self.solver = solver
         self.Q_LU = self.S_LU = self.R = None
 
-    def forward(self, Q_, p_, G_, h_, A_, b_, F_):
-        # TODO Write detailed documentation.
-        """Solve a batch of mixed LCPs.
-        """
-
-        nBatch = extract_nBatch(Q_, p_, G_, h_, A_, b_)
-        Q, _ = expandParam(Q_, nBatch, 3)
-        p, _ = expandParam(p_, nBatch, 2)
-        G, _ = expandParam(G_, nBatch, 3)
-        h, _ = expandParam(h_, nBatch, 2)
-        A, _ = expandParam(A_, nBatch, 3)
-        b, _ = expandParam(b_, nBatch, 2)
-        F, _ = expandParam(F_, nBatch, 3)
-
+    def forward(self, Q, p, G, h, A, b, F):
         _, nineq, nz = G.size()
-        neq = A.size(1) if A.ndimension() > 0 else 0
+        neq = A.size(1) if A.ndimension() > 1 else 0
         assert(neq > 0 or nineq > 0)
         self.neq, self.nineq, self.nz = neq, nineq, nz
 
-        if self.solver == LCPSolvers.PDIPM_BATCHED:
-            self.Q_LU, self.S_LU, self.R = pdipm_b.pre_factor_kkt(Q, G, F, A)
-            zhats, self.nus, self.lams, self.slacks = pdipm_b.forward(
-                Q, p, G, h, A, b, F, self.Q_LU, self.S_LU, self.R,
-                self.eps, self.verbose, self.notImprovedLim,
-                self.maxIter, solver=pdipm_b.KKTSolvers.LU_PARTIAL)
-        else:
-            assert False
+        assert self.solver == LCPSolvers.PDIPM_BATCHED
+        self.Q_LU, self.S_LU, self.R = pdipm_b.pre_factor_kkt(Q, G, F, A)
+        zhats, self.nus, self.lams, self.slacks = pdipm_b.forward(
+            Q, p, G, h, A, b, F, self.Q_LU, self.S_LU, self.R,
+            self.eps, self.verbose, self.notImprovedLim,
+            self.maxIter, solver=pdipm_b.KKTSolvers.LU_PARTIAL)
 
-        # self.verify_lcp(zhats, Q, G, A, F, p, h)
-        self.save_for_backward(zhats, Q_, p_, G_, h_, A_, b_, F_)
+        self.save_for_backward(zhats, Q, p, G, h, A, b, F)
         return zhats
 
     def backward(self, dl_dzhat):
         zhats, Q, p, G, h, A, b, F = self.saved_tensors
         nBatch = extract_nBatch(Q, p, G, h, A, b)
-        Q, Q_e = expandParam(Q, nBatch, 3)
-        p, p_e = expandParam(p, nBatch, 2)
-        G, G_e = expandParam(G, nBatch, 3)
-        h, h_e = expandParam(h, nBatch, 2)
-        A, A_e = expandParam(A, nBatch, 3)
-        b, b_e = expandParam(b, nBatch, 2)
-        F, F_e = expandParam(F, nBatch, 3)
 
         neq, nineq, nz = self.neq, self.nineq, self.nz
 
@@ -78,30 +55,103 @@ class LCPFunction(Function):
 
         dps = dx
         dGs = (bger(dlam, zhats) + bger(self.lams, dx))
-        if G_e:
-            dGs = dGs.mean(0).squeeze(0)
-        dFs = (bger(dlam, self.lams) + bger(self.lams, dlam))
-        # dFs = torch.ones(dFs.size()).double()
-        if F_e:
-            assert False  # TODO
+        dFs = bger(dlam, self.lams)  # XXX
         dhs = -dlam
-        if h_e:
-            dhs = dhs.mean(0).squeeze(0)
         if neq > 0:
             dAs = bger(dnu, zhats) + bger(self.nus, dx)
             dbs = -dnu
-            if A_e:
-                dAs = dAs.mean(0).squeeze(0)
-            if b_e:
-                dbs = dbs.mean(0).squeeze(0)
         else:
             dAs, dbs = None, None
         dQs = 0.5 * (bger(dx, zhats) + bger(zhats, dx))
-        if Q_e:
-            dQs = dQs.mean(0).squeeze(0)
 
         grads = (dQs, dps, dGs, dhs, dAs, dbs, dFs)
         return grads
+
+    def numerical_backward(self, dl_dzhat):
+        # adapted from pytorch's grad check
+        # from torch.autograd.gradcheck import get_numerical_jacobian
+        from torch.autograd import Variable
+        from collections import Iterable
+
+        def make_jacobian(x, num_out):
+            if isinstance(x, Variable) and not x.requires_grad:
+                return None
+            elif torch.is_tensor(x) or isinstance(x, Variable):
+                return torch.zeros(x.nelement(), num_out)
+            elif isinstance(x, Iterable):
+                jacobians = list(filter(
+                    lambda x: x is not None, (make_jacobian(elem, num_out) for elem in x)))
+                if not jacobians:
+                    return None
+                return type(x)(jacobians)
+            else:
+                return None
+
+        def iter_tensors(x, only_requiring_grad=False):
+            if torch.is_tensor(x):
+                yield x
+            elif isinstance(x, Variable):
+                if x.requires_grad or not only_requiring_grad:
+                    yield x.data
+            elif isinstance(x, Iterable):
+                for elem in x:
+                    for result in iter_tensors(elem, only_requiring_grad):
+                        yield result
+
+        def contiguous(x):
+            if torch.is_tensor(x):
+                return x.contiguous()
+            elif isinstance(x, Variable):
+                return x.contiguous()
+            elif isinstance(x, Iterable):
+                return type(x)(contiguous(e) for e in x)
+            return x
+
+        def get_numerical_jacobian(fn, inputs, target, eps=1e-3):
+            # To be able to use .view(-1) input must be contiguous
+            inputs = contiguous(inputs)
+            target = contiguous(target)
+            output_size = fn(*inputs).numel()
+            jacobian = make_jacobian(target, output_size)
+
+            # It's much easier to iterate over flattened lists of tensors.
+            # These are reference to the same objects in jacobian, so any changes
+            # will be reflected in it as well.
+            x_tensors = [t for t in iter_tensors(target, True)]
+            j_tensors = [t for t in iter_tensors(jacobian)]
+
+            outa = torch.DoubleTensor(output_size)
+            outb = torch.DoubleTensor(output_size)
+
+            # TODO: compare structure
+            for x_tensor, d_tensor in zip(x_tensors, j_tensors):
+                flat_tensor = x_tensor.view(-1)
+                for i in range(flat_tensor.nelement()):
+                    orig = flat_tensor[i]
+                    flat_tensor[i] = orig - eps
+                    outa.copy_(fn(*inputs), broadcast=False)
+                    flat_tensor[i] = orig + eps
+                    outb.copy_(fn(*inputs), broadcast=False)
+                    flat_tensor[i] = orig
+
+                    outb.add_(-1, outa).div_(2 * eps)
+                    d_tensor[i] = outb
+
+            return jacobian
+
+        zhats = self.saved_tensors[0]
+        inputs = self.saved_tensors[1:]
+        grads = []
+        for x in inputs:
+            dl_dx = None
+            if len(x.size()) > 0:
+                jacobian = get_numerical_jacobian(self.forward, inputs, target=x.squeeze(0),
+                                                  eps=1e-5).type_as(dl_dzhat)
+                dl_dx = jacobian.matmul(dl_dzhat.t()).view(x.size())
+            grads.append(dl_dx)
+        # grads = (dQs, dps, dGs, dhs, dAs, dbs, dFs)
+        # grads_compare = self.analytical_backward(dl_dzhat)
+        return tuple(grads)
 
     def verify_lcp(self, zhats, Q, G, A, F, p, h):
         epsilon = 1e-7

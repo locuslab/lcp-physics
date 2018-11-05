@@ -1,4 +1,5 @@
 import sys
+import math
 
 import pygame
 
@@ -11,7 +12,7 @@ from lcp_physics.physics.forces import ExternalForce, gravity
 from lcp_physics.physics.world import World, run_world
 from lcp_physics.physics.utils import Recorder, plot, Params
 
-TIME = 10
+TIME = 7
 DT = Params.DEFAULT_DT
 
 
@@ -54,7 +55,7 @@ def grad_demo(screen):
         # grad.clamp_(-10, 10)
         # temp = c.fric_coeff.data - learning_rate * grad
         # temp.clamp_(1e-7, 1)
-        learning_rate /= 1.1
+        learning_rate *= 0.9
         # next_fric_coeff = Variable(temp, requires_grad=True)
         print(i, '/', max_iter, dist.data[0])
         print(grad)
