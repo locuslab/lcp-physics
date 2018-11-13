@@ -26,7 +26,7 @@ def get_sizes(G, A=None):
     elif G.dim() == 3:
         nBatch, nineq, nz = G.size()
     if A is not None:
-        neq = A.size(1) if A.ndimension() > 0 else 0
+        neq = A.size(1) if A.ndimension() > 1 else 0
     else:
         neq = None
     # nBatch = batchedTensor.size(0) if batchedTensor is not None else None
@@ -50,7 +50,7 @@ def expandParam(X, nBatch, nDim):
         raise RuntimeError("Unexpected number of dimensions.")
 
 
-def extract_nBatch(Q, p, G, h, A, b):
+def extract_batch_size(Q, p, G, h, A, b):
     dims = [3, 2, 3, 2, 3, 2]
     params = [Q, p, G, h, A, b]
     for param, dim in zip(params, dims):

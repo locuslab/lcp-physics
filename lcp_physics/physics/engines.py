@@ -18,11 +18,14 @@ Tensor = Params.TENSOR_TYPE
 
 
 class Engine:
+    """Base class for stepping engine."""
     def solve_dynamics(self, world, dt):
         raise NotImplementedError
 
 
 class PdipmEngine(Engine):
+    """Engine that uses the primal dual interior point method LCP solver.
+    """
     def __init__(self, max_iter=10):
         self.lcp_solver = LCPFunction
         self.cached_inverse = None
@@ -81,7 +84,7 @@ class PdipmEngine(Engine):
                            Variable(Tensor(v.size(0), Jf.size(1) + mu.size(1))
                                     .zero_())], 1)
 
-            x = -self.lcp_solver(maxIter=self.max_iter, verbose=-1)(M, u, G, h, Je, b, F)
+            x = -self.lcp_solver(max_iter=self.max_iter, verbose=-1)(M, u, G, h, Je, b, F)
         new_v = x[:world.vec_len * len(world.bodies)].squeeze(0)
         return new_v
 
@@ -113,13 +116,13 @@ class PdipmEngine(Engine):
             x = torch.matmul(inv, u)
         else:
             v = gc
-            TM = M.unsqueeze(0)
-            TJe = Je.unsqueeze(0)
-            TJc = Jc.unsqueeze(0)
-            Th = u[:M.size(0)].unsqueeze(0)
-            Tb = u[M.size(0):].unsqueeze(0)
-            Tv = v.unsqueeze(0)
-            F = Variable(Tensor(TJc.size(1), TJc.size(1)).zero_().unsqueeze(0))
-            x = self.lcp_solver()(TM, Th, TJc, Tv, TJe, Tb, F)
+            Je = Je.unsqueeze(0)
+            Jc = Jc.unsqueeze(0)
+            h = u[:M.size(0)].unsqueeze(0)
+            b = u[M.size(0):].unsqueeze(0)
+            M = M.unsqueeze(0)
+            v = v.unsqueeze(0)
+            F = Variable(Tensor(Jc.size(1), Jc.size(1)).zero_().unsqueeze(0))
+            x = self.lcp_solver()(M, h, Jc, v, Je, b, F)
         dp = -x[:M.size(0)]
         return dp

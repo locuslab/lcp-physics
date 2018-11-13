@@ -8,7 +8,7 @@ from torch.autograd import Variable
 
 from lcp_physics.physics.bodies import Circle, Rect
 from lcp_physics.physics.constraints import Joint
-from lcp_physics.physics.forces import ExternalForce, gravity
+from lcp_physics.physics.forces import ExternalForce, down_force
 from lcp_physics.physics.world import World, run_world
 from lcp_physics.physics.utils import Recorder, plot, Params
 

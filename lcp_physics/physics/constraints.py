@@ -14,6 +14,8 @@ Tensor = Params.TENSOR_TYPE
 
 
 class Joint:
+    """Revolute joint.
+    """
     def __init__(self, body1, body2, pos):
         self.static = False
         self.num_constraints = 2
@@ -28,11 +30,11 @@ class Joint:
             self.r2, self.rot2 = cart_to_polar(self.pos2)
 
     def J(self):
-        J1 = torch.cat([torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1),
+        J1 = torch.cat([torch.cat([-self.pos1[Y:Y+1], self.pos1[X:X+1]]).unsqueeze(1),
                         Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
         J2 = None
         if self.body2 is not None:
-            J2 = torch.cat([torch.cat([self.pos2[Y], -self.pos2[X]]).unsqueeze(1),
+            J2 = torch.cat([torch.cat([self.pos2[Y:Y+1], -self.pos2[X:X+1]]).unsqueeze(1),
                             -Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
         return J1, J2
 
@@ -49,12 +51,13 @@ class Joint:
             # keep position on body1 as reference
             self.pos2 = self.pos - self.body2.pos
 
-    def draw(self, screen):
-        return [pygame.draw.circle(screen, (0, 255, 0),
-                                   self.pos.data.numpy().astype(int), 2)]
+    def draw(self, screen, pixels_per_meter=1):
+        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        return [pygame.draw.circle(screen, (0, 255, 0), pos, 2)]
 
 
 class FixedJoint:
+    """Fixed joint, fixes two bodies together."""
     def __init__(self, body1, body2):
         self.static = False
         self.num_constraints = 3
@@ -86,13 +89,15 @@ class FixedJoint:
             # keep position on body1 as reference
             self.pos2 = self.pos - self.body2.pos
 
-    def draw(self, screen):
-        start = self.body1.pos.data.numpy().astype(int)
-        end = self.body2.pos.data.numpy().astype(int)
+    def draw(self, screen, pixels_per_meter=1):
+        start = (self.body1.pos.data.numpy() * pixels_per_meter).astype(int)
+        end = (self.body2.pos.data.numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.line(screen, (0, 255, 0), start, end, 2)]
 
 
 class YConstraint:
+    """Prevents motion in the Y axis.
+    """
     def __init__(self, body1):
         self.static = True
         self.num_constraints = 1
@@ -112,12 +117,14 @@ class YConstraint:
         self.pos = self.body1.pos
         self.rot1 = self.body1.p[0]
 
-    def draw(self, screen):
-        pos = self.pos.data.numpy().astype(int)
+    def draw(self, screen, pixels_per_meter=1):
+        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.line(screen, (0, 255, 0), pos - [5, 0], pos + [5, 0], 2)]
 
 
 class XConstraint:
+    """Prevents motion in the X axis.
+    """
     def __init__(self, body1):
         self.static = True
         self.num_constraints = 1
@@ -137,12 +144,14 @@ class XConstraint:
         self.pos = self.body1.pos
         self.rot1 = self.body1.p[0]
 
-    def draw(self, screen):
-        pos = self.pos.data.numpy().astype(int)
+    def draw(self, screen, pixels_per_meter=1):
+        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.line(screen, (0, 255, 0), pos - [0, 5], pos + [0, 5], 2)]
 
 
 class RotConstraint:
+    """Prevents rotational motion.
+    """
     def __init__(self, body1):
         self.static = True
         self.num_constraints = 1
@@ -162,13 +171,14 @@ class RotConstraint:
         self.pos = self.body1.pos
         self.rot1 = self.body1.p[0]
 
-    def draw(self, screen):
-        return [pygame.draw.circle(screen, (0, 255, 0),
-                                   self.pos.data.numpy().astype(int),
-                                   5, 1)]
+    def draw(self, screen, pixels_per_meter=1):
+        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        return [pygame.draw.circle(screen, (0, 255, 0), pos, 5, 1)]
 
 
 class TotalConstraint:
+    """Prevents all motion.
+    """
     def __init__(self, body1):
         self.static = True
         self.num_constraints = 3
@@ -192,8 +202,8 @@ class TotalConstraint:
         self.pos1 = polar_to_cart(self.r1, self.rot1)
         self.pos = self.body1.pos + self.pos1
 
-    def draw(self, screen):
-        pos = self.pos.data.numpy().astype(int)
+    def draw(self, screen, pixels_per_meter=1):
+        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.circle(screen, (0, 255, 0), pos + 1, 5, 1),
                 pygame.draw.line(screen, (0, 255, 0), pos - [5, 0], pos + [5, 0], 2),
                 pygame.draw.line(screen, (0, 255, 0), pos - [0, 5], pos + [0, 5], 2)]

@@ -17,6 +17,8 @@ Tensor = Params.TENSOR_TYPE
 
 
 class Body(object):
+    """Base class for bodies.
+    """
     def __init__(self, pos, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
                  fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
@@ -90,8 +92,9 @@ class Body(object):
 
     def add_force(self, f):
         self.forces.append(f)
+        f.body = self
 
-    def draw(self, screen):
+    def draw(self, screen, pixels_per_meter=1):
         raise NotImplementedError
 
 
@@ -118,9 +121,9 @@ class Circle(Body):
     def set_p(self, new_p, update_geom_rotation=False):
         super().set_p(new_p, update_geom_rotation=update_geom_rotation)
 
-    def draw(self, screen):
-        center = self.pos.data.numpy().astype(int)
-        rad = int(self.rad.data[0])
+    def draw(self, screen, pixels_per_meter=1):
+        center = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        rad = int(self.rad.data[0] * pixels_per_meter)
         # draw radius to visualize orientation
         r = pygame.draw.line(screen, (0, 0, 255), center,
                              center + [math.cos(self.rot.data[0]) * rad,
@@ -133,12 +136,12 @@ class Circle(Body):
 
 
 class Hull(Body):
-    """ Body's position will not necessarily match reference point.
-        Reference point is used as a world frame reference for setting the position
-        of vertices, which maintain the world frame position that was passed in.
-        After vertices are positioned in world frame using reference point, centroid
-        of hull is calculated and the vertices' representation is adjusted to the
-        centroid's frame. Object position is set to centroid.
+    """Body's position will not necessarily match reference point.
+       Reference point is used as a world frame reference for setting the position
+       of vertices, which maintain the world frame position that was passed in.
+       After vertices are positioned in world frame using reference point, centroid
+       of hull is calculated and the vertices' representation is adjusted to the
+       centroid's frame. Object position is set to centroid.
     """
     def __init__(self, ref_point, vertices, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
                  fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
@@ -215,16 +218,17 @@ class Hull(Body):
             total = total + ((v2[X] - v1[X]) * (v2[Y] + v1[Y])).data[0]
         return total < 0
 
-    def draw(self, screen, draw_center=True):
+    def draw(self, screen, draw_center=True, pixels_per_meter=1):
         # vertices in global frame
-        pts = [v + self.pos for v in self.verts]
+        pts = [(v + self.pos).data.cpu().numpy() * pixels_per_meter
+               for v in self.verts]
 
         # draw hull
         p = pygame.draw.polygon(screen, self.col, pts, self.thickness)
         # draw center
         if draw_center:
-            c = pygame.draw.circle(screen, (0, 0, 255),
-                                   self.pos.data.numpy().astype(int), 2)
+            c_pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+            c = pygame.draw.circle(screen, (0, 0, 255), c_pos, 2)
             return [p, c]
         else:
             return [p]
@@ -267,12 +271,14 @@ class Rect(Hull):
     def move(self, dt, update_geom_rotation=True):
         super().move(dt, update_geom_rotation=update_geom_rotation)
 
-    def draw(self, screen):
+    def draw(self, screen, pixels_per_meter=1):
         # draw diagonals
-        verts = [v + self.pos for v in self.verts]
+        verts = [(v + self.pos).data.cpu().numpy() * pixels_per_meter
+                 for v in self.verts]
         l1 = pygame.draw.line(screen, (0, 0, 255), verts[0], verts[2])
         l2 = pygame.draw.line(screen, (0, 0, 255), verts[1], verts[3])
 
         # draw rectangle
-        p = super().draw(screen, draw_center=False)
+        p = super().draw(screen, pixels_per_meter=pixels_per_meter,
+                         draw_center=False)
         return [l1, l2] + p

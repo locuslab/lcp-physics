@@ -6,7 +6,7 @@ from torch.autograd import Variable
 
 from lcp_physics.physics.bodies import Circle, Rect
 from lcp_physics.physics.constraints import Joint, TotalConstraint, XConstraint, YConstraint
-from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
+from lcp_physics.physics.forces import ExternalForce, down_force, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params
 from lcp_physics.physics.world import World, run_world
 
@@ -42,7 +42,7 @@ class TestDemos(unittest.TestCase):
         for i in range(1, 3):
             c = Circle([300 + 1 * (i - 1), 150 + 80 * (i - 1)], 20)
             if i == 1:
-                c.add_force(ExternalForce(gravity, multiplier=100))
+                c.add_force(ExternalForce(down_force, multiplier=100))
             bodies.append(c)
         joints.append(TotalConstraint(bodies[-1]))
 
@@ -50,7 +50,7 @@ class TestDemos(unittest.TestCase):
         for i in range(1, 3):
             c = Circle([225 - 10 * (i - 1), 300 + 80 * (i - 1)], 20)
             if i == 1:
-                c.add_force(ExternalForce(gravity, multiplier=100))
+                c.add_force(ExternalForce(down_force, multiplier=100))
             bodies.append(c)
 
         # 2 free ball collision straight
@@ -61,12 +61,12 @@ class TestDemos(unittest.TestCase):
             bodies.append(c)
 
         r = Rect([300, 500], [40, 40])
-        r.add_force(ExternalForce(gravity, multiplier=-100))
+        r.add_force(ExternalForce(down_force, multiplier=-100))
         r.v[0] = -1
         bodies.append(r)
 
         r = Rect([300, 50], [40, 40])
-        r.add_force(ExternalForce(gravity, multiplier=100))
+        r.add_force(ExternalForce(down_force, multiplier=100))
         r.v[0] = -1
         for b in bodies:
             b.add_no_collision(r)
@@ -89,7 +89,7 @@ class TestDemos(unittest.TestCase):
             bodies.append(r)
             joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
             bodies[-1].add_no_collision(bodies[-2])
-        bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
+        bodies[-1].add_force(ExternalForce(down_force, multiplier=100))
 
         # make projectile
         c = Circle([50, 500], 20, restitution=1)
@@ -117,7 +117,7 @@ class TestDemos(unittest.TestCase):
         r.move(1)
         r.v[0] = 0.
         bodies.append(r)
-        r.add_force(ExternalForce(gravity, multiplier=100))
+        r.add_force(ExternalForce(down_force, multiplier=100))
         # r.add_force(ExternalForce(hor_impulse, multiplier=-100))
 
         # c = Circle([100, 150], 30)
@@ -155,11 +155,11 @@ class TestDemos(unittest.TestCase):
         r = Rect([400, 400], [900, 10], restitution=restitution, fric_coeff=fric_coeff)
         bodies.append(r)
         r.add_force(ExternalForce(timed_force, multiplier=100))
-        r.add_force(ExternalForce(gravity, multiplier=100))
+        r.add_force(ExternalForce(down_force, multiplier=100))
 
         c = Circle([200, 364], 30, restitution=restitution, fric_coeff=fric_coeff)
         bodies.append(c)
-        c.add_force(ExternalForce(gravity, multiplier=100))
+        c.add_force(ExternalForce(down_force, multiplier=100))
 
         c = Circle([50, 436], 30, restitution=restitution, fric_coeff=fric_coeff)
         bodies.append(c)
@@ -268,7 +268,7 @@ class TestDemos(unittest.TestCase):
                 bodies.append(r)
                 joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
                 bodies[-1].add_no_collision(bodies[-2])
-            bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
+            bodies[-1].add_force(ExternalForce(down_force, multiplier=100))
 
             # make projectile
             m = 13

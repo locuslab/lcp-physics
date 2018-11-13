@@ -5,7 +5,7 @@ import pygame
 
 from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint, RotConstraint, TotalConstraint
-from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse
+from lcp_physics.physics.forces import ExternalForce, Gravity, vert_impulse, hor_impulse
 from lcp_physics.physics.utils import Params, Recorder
 from lcp_physics.physics.world import World, run_world
 
@@ -28,7 +28,7 @@ def debug_demo(screen):
     for i in range(1, 3):
         c = Circle([300 + 1 * (i - 1), 150 + 80 * (i - 1)], 20)
         if i == 1:
-            c.add_force(ExternalForce(gravity, multiplier=100))
+            c.add_force(Gravity(g=100))
         # else:
         #     c.add_force(ExternalForce(neg_gravity, multiplier=100))
         bodies.append(c)
@@ -38,7 +38,7 @@ def debug_demo(screen):
     for i in range(1, 3):
         c = Circle([225 - 10 * (i - 1), 300 + 80 * (i - 1)], 20)
         if i == 1:
-            c.add_force(ExternalForce(gravity, multiplier=100))
+            c.add_force(Gravity(g=100))
         bodies.append(c)
 
     # 2 free ball collision straight
@@ -49,7 +49,7 @@ def debug_demo(screen):
         bodies.append(c)
 
     r = Rect([300, 500], [40, 40], vel=[-1, 0, 0])
-    r.add_force(ExternalForce(gravity, multiplier=-100))
+    r.add_force(Gravity(g=-100))
     bodies.append(r)
 
     clock = Circle([975, 575], 20, vel=[1, 0, 0])
@@ -74,7 +74,7 @@ def chain_demo(screen):
         bodies.append(r)
         joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
         bodies[-1].add_no_collision(bodies[-2])
-        bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
+        bodies[-1].add_force(Gravity(g=100))
 
     # make projectile
     c = Circle([50, 500], 20, restitution=restitution)
@@ -106,7 +106,7 @@ def slide_demo(screen):
              restitution=restitution, fric_coeff=fric_coeff)
     # r = Hull([100, 100], [[30, 30], [-30, 30], [-30, -30], [30, -30]])
     bodies.append(r)
-    r.add_force(ExternalForce(gravity, multiplier=100))
+    r.add_force(Gravity(g=100))
 
     recorder = None
     # recorder = Recorder(DT, screen)
@@ -130,11 +130,11 @@ def fric_demo(screen):
     r = Rect([400, 400], [900, 10], restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(r)
     r.add_force(ExternalForce(timed_force, multiplier=100))
-    r.add_force(ExternalForce(gravity, multiplier=100))
+    r.add_force(Gravity(g=100))
 
     c = Circle([200, 364], 30, restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(c)
-    c.add_force(ExternalForce(gravity, multiplier=100))
+    c.add_force(Gravity(g=100))
 
     c = Circle([50, 436], 30, restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(c)

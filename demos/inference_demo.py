@@ -9,7 +9,7 @@ from torch.autograd import Variable
 
 from lcp_physics.physics.world import World
 from lcp_physics.physics.bodies import Circle, Rect
-from lcp_physics.physics.forces import ExternalForce, gravity, vert_impulse, hor_impulse, rot_impulse
+from lcp_physics.physics.forces import ExternalForce, Gravity, vert_impulse, hor_impulse, rot_impulse
 from lcp_physics.physics.constraints import Joint
 from lcp_physics.physics.utils import Recorder, plot, Params
 
@@ -95,7 +95,7 @@ def make_world(forces, mass, num_links=10):
         bodies.append(r)
         joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
         bodies[-1].add_no_collision(bodies[-2])
-    bodies[-1].add_force(ExternalForce(gravity, multiplier=100))
+    bodies[-1].add_force(Gravity(g=100))
 
     # make projectile
     m = 13

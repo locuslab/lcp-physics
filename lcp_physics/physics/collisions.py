@@ -51,6 +51,9 @@ class OdeCollisionHandler(CollisionHandler):
 
 
 class DiffCollisionHandler(CollisionHandler):
+    """Differentiable collision handler, operations to calculate contact manifold
+    are done in autograd.
+    """
     def __init__(self):
         self.debug_callback = OdeCollisionHandler()
 

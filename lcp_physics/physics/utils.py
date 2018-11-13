@@ -8,11 +8,16 @@ from torch.autograd import Variable
 
 
 class Params:
+    """Aggregates general simulation parameters and defaults.
+    """
     # Dimensions
     DIM = 2
 
-    # Contact tolerance parameter
+    # Contact detectopm parameter
     DEFAULT_EPSILON = 0.1
+
+    # Penetration tolerance parameter
+    DEFAULT_TOL = 1e-6
 
     # Default simulation parameters
     DEFAULT_RESTITUTION = 0.5
@@ -47,6 +52,8 @@ class Indices:
 
 
 class Recorder:
+    """Records simulations into a series of image frames.
+    """
     def __init__(self, dt, screen, path=os.path.join('videos', 'frames')):
         self.dt = dt
         self.prev_t = 0.
@@ -66,6 +73,8 @@ class Recorder:
 
 
 def cart_to_polar(cart_vec, positive=True):
+    """Converts cartesian to polar coordinates.
+    """
     r = cart_vec.norm()
     theta = torch.atan2(cart_vec[Indices.Y], cart_vec[Indices.X])
     if theta.data[0] < 0 and positive:
@@ -74,20 +83,31 @@ def cart_to_polar(cart_vec, positive=True):
 
 
 def polar_to_cart(r, theta):
+    """Converts polar to cartesian coordinates.
+    """
     ret = torch.cat([torch.cos(theta).unsqueeze(0),
                      torch.sin(theta).unsqueeze(0)]).squeeze() * r
     return ret
 
 
 def cross_2d(v1, v2):
+    """Two dimensional cross product.
+    """
+    v1 = adapt_zero_dim(v1)
+    v2 = adapt_zero_dim(v2)
     return v1[0] * v2[1] - v1[1] * v2[0]
 
 
 def left_orthogonal(v):
+    """Get the (left) orthogonal vector to the provided vector.
+    """
+    v = adapt_zero_dim(v)
     return torch.cat([v[1], -v[0]])
 
 
 def rotation_matrix(ang):
+    """Get the rotation matrix for a specific angle.
+    """
     s, c = torch.sin(ang), torch.cos(ang)
     rot_mat = Variable(Params.TENSOR_TYPE(2, 2))
     rot_mat[0, 0] = rot_mat[1, 1] = c
@@ -113,6 +133,14 @@ def wrap_variable(x, *args, **kwargs):
     x = x if hasattr(x, '__len__') else [x]  # check if x is scalar
     return x if isinstance(x, Variable) \
         else Variable(Params.TENSOR_TYPE(x), *args, **kwargs)
+
+
+def adapt_zero_dim(x):
+    """Compatibility utility for pytorch 0.4.
+    """
+    if x.dim() == 1:
+        x = x.unsqueeze(1)
+    return x
 
 
 def plot(y_axis, x_axis=None):

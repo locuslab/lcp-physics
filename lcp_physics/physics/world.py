@@ -12,15 +12,17 @@ from .utils import Indices, Params, cross_2d, get_instance, left_orthogonal
 
 X, Y = Indices.X, Indices.Y
 DIM = Params.DIM
-TOL = 1e-12
 
 Tensor = Params.TENSOR_TYPE
 
 
 class World:
+    """A physics simulation world, with bodies and constraints.
+    """
     def __init__(self, bodies, constraints=[], dt=Params.DEFAULT_DT, engine=Params.DEFAULT_ENGINE,
                  collision_callback=Params.DEFAULT_COLLISION, eps=Params.DEFAULT_EPSILON,
-                 fric_dirs=Params.DEFAULT_FRIC_DIRS, post_stab=Params.POST_STABILIZATION):
+                 tol=Params.DEFAULT_TOL, fric_dirs=Params.DEFAULT_FRIC_DIRS,
+                 post_stab=Params.POST_STABILIZATION):
         # self.collisions_debug = None  # XXX
 
         # Load classes from string name defined in utils
@@ -30,12 +32,14 @@ class World:
         self.t = 0
         self.dt = dt
         self.eps = eps
+        self.tol = tol
         self.fric_dirs = fric_dirs
         self.post_stab = post_stab
 
         self.bodies = bodies
         self.vec_len = len(self.bodies[0].v)
 
+        # XXX Using ODE for broadphase for now
         self.space = ode.HashSpace()
         for i, b in enumerate(bodies):
             b.geom.body = i
@@ -63,6 +67,8 @@ class World:
 
         self.collisions = None
         self.find_collisions()
+        assert all([c[0][3].data[0] <= self.tol for c in self.collisions]), \
+            'Interpenetration at beginning of step:\n{}'.format(self.collisions)
 
     def step(self, fixed_dt=False):
         dt = self.dt
@@ -75,12 +81,8 @@ class World:
             self.step_dt(dt)
 
     def step_dt(self, dt):
-        start_v = self.v
         start_p = torch.cat([b.p for b in self.bodies])
         start_rot_joints = [(j[0].rot1, j[0].rot2) for j in self.joints]
-        start_collisions = self.collisions
-        assert all([c[0][3].data[0] <= TOL for c in self.collisions]), \
-            'Interpenetration at beginning of step:\n{}'.format(self.collisions)
         new_v = self.engine.solve_dynamics(self, dt)
         self.set_v(new_v)
         while True:
@@ -90,19 +92,22 @@ class World:
             for joint in self.joints:
                 joint[0].move(dt)
             self.find_collisions()
-            if all([c[0][3].data[0] <= TOL for c in self.collisions]):
+            if all([c[0][3].data[0] <= self.tol for c in self.collisions]):
                 break
             else:
+                if dt < self.dt / 4:
+                    # if step becomes too small, just continue
+                    break
                 dt /= 2
                 # reset positions to beginning of step
-                # XXX Avoid clone?
+                # XXX Clones necessary?
                 self.set_p(start_p.clone())
                 for j, c in zip(self.joints, start_rot_joints):
-                    j[0].rot1 = c[0].clone()  # XXX Clone necessary?
+                    j[0].rot1 = c[0].clone()
                     j[0].update_pos()
-                self.collisions = start_collisions
 
         if self.post_stab:
+            tmp_v = self.v
             dp = self.engine.post_stabilization(self).squeeze(0)
             dp /= 2  # XXX Why 1/2 factor?
             # XXX Clean up / Simplify this update?
@@ -111,7 +116,7 @@ class World:
                 body.move(dt)
             for joint in self.joints:
                 joint[0].move(dt)
-            self.set_v(new_v)
+            self.set_v(tmp_v)
 
             self.find_collisions()  # XXX Necessary to recheck collisions?
         self.t += dt
@@ -238,8 +243,8 @@ class World:
         raise NotImplementedError
 
 
-def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
-              print_time=True, screen=None, recorder=None):
+def run_world(world, animation_dt=None, run_time=10, print_time=True,
+              screen=None, recorder=None, pixels_per_meter=1):
     """Helper function to run a simulation forward once a world is created.
     """
     # If in batched mode don't display simulation
@@ -252,7 +257,8 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
         background = background.convert()
         background.fill((255, 255, 255))
 
-    animation_dt = dt
+    if animation_dt is None:
+        animation_dt = float(world.dt)
     elapsed_time = 0.
     prev_frame_time = -animation_dt
     start_time = time.time()
@@ -271,9 +277,9 @@ def run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                 screen.blit(background, (0, 0))
                 update_list = []
                 for body in world.bodies:
-                    update_list += body.draw(screen)
+                    update_list += body.draw(screen, pixels_per_meter=pixels_per_meter)
                 for joint in world.joints:
-                    update_list += joint[0].draw(screen)
+                    update_list += joint[0].draw(screen, pixels_per_meter=pixels_per_meter)
 
                 # Visualize collision points and normal for debug
                 # (Uncomment collisions_debug line in collision handler):
