@@ -115,7 +115,7 @@ def slide_demo(screen):
 
 
 def fric_demo(screen):
-    restitution = 0.75
+    restitution = 0.1
     fric_coeff = 1
 
     bodies = []
@@ -150,7 +150,7 @@ def fric_demo(screen):
 
     recorder = None
     # recorder = Recorder(DT, screen)
-    world = World(bodies, joints, dt=DT)
+    world = World(bodies, joints, dt=DT, post_stab=True)
     run_world(world, run_time=10, screen=screen, recorder=recorder)
 
 

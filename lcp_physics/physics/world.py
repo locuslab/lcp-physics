@@ -22,7 +22,7 @@ class World:
     def __init__(self, bodies, constraints=[], dt=Params.DEFAULT_DT, engine=Params.DEFAULT_ENGINE,
                  collision_callback=Params.DEFAULT_COLLISION, eps=Params.DEFAULT_EPSILON,
                  tol=Params.DEFAULT_TOL, fric_dirs=Params.DEFAULT_FRIC_DIRS,
-                 post_stab=Params.POST_STABILIZATION):
+                 post_stab=Params.POST_STABILIZATION, strict_no_penetration=True):
         # self.collisions_debug = None  # XXX
 
         # Load classes from string name defined in utils
@@ -67,8 +67,10 @@ class World:
 
         self.collisions = None
         self.find_collisions()
-        assert all([c[0][3].data[0] <= self.tol for c in self.collisions]), \
-            'Interpenetration at beginning of step:\n{}'.format(self.collisions)
+        self.strict_no_pen = strict_no_penetration
+        if self.strict_no_pen:
+            assert all([c[0][3].data[0] <= self.tol for c in self.collisions]), \
+                'Interpenetration at start:\n{}'.format(self.collisions)
 
     def step(self, fixed_dt=False):
         dt = self.dt
@@ -95,7 +97,7 @@ class World:
             if all([c[0][3].data[0] <= self.tol for c in self.collisions]):
                 break
             else:
-                if dt < self.dt / 4:
+                if not self.strict_no_pen and dt < self.dt / 4:
                     # if step becomes too small, just continue
                     break
                 dt /= 2
