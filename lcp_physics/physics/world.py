@@ -3,7 +3,6 @@ from functools import lru_cache
 
 import ode
 import torch
-from torch.autograd import Variable
 
 from . import engines as engines_module
 from . import collisions as collisions_module
@@ -58,7 +57,7 @@ class World:
                 self.static_inverse = False
 
         M_size = bodies[0].M.size(0)
-        self._M = Variable(Tensor(M_size * len(bodies), M_size * len(bodies)).zero_())
+        self._M = bodies[0].M.new_zeros(M_size * len(bodies), M_size * len(bodies))
         # XXX Better way for diagonal block matrix?
         for i, b in enumerate(bodies):
             self._M[i * M_size:(i + 1) * M_size, i * M_size:(i + 1) * M_size] = b.M
@@ -69,7 +68,7 @@ class World:
         self.find_collisions()
         self.strict_no_pen = strict_no_penetration
         if self.strict_no_pen:
-            assert all([c[0][3].data[0] <= self.tol for c in self.collisions]), \
+            assert all([c[0][3].item() <= self.tol for c in self.collisions]), \
                 'Interpenetration at start:\n{}'.format(self.collisions)
 
     def step(self, fixed_dt=False):
@@ -94,7 +93,7 @@ class World:
             for joint in self.joints:
                 joint[0].move(dt)
             self.find_collisions()
-            if all([c[0][3].data[0] <= self.tol for c in self.collisions]):
+            if all([c[0][3].item() <= self.tol for c in self.collisions]):
                 break
             else:
                 if not self.strict_no_pen and dt < self.dt / 4:
@@ -144,7 +143,7 @@ class World:
         self.space.collide([self], self.collision_callback)
 
     def restitutions(self):
-        restitutions = Variable(Tensor(len(self.collisions)))
+        restitutions = self._M.new_empty(len(self.collisions))
         for i, c in enumerate(self.collisions):
             r1 = self.bodies[c[1]].restitution
             r2 = self.bodies[c[2]].restitution
@@ -156,8 +155,8 @@ class World:
         return self._M
 
     def Je(self):
-        Je = Variable(Tensor(self.num_constraints,
-                             self.vec_len * len(self.bodies)).zero_())
+        Je = self._M.new_zeros(self.num_constraints,
+                               self.vec_len * len(self.bodies))
         row = 0
         for joint in self.joints:
             J1, J2 = joint[0].J()
@@ -172,22 +171,22 @@ class World:
         return Je
 
     def Jc(self):
-        Jc = Variable(Tensor(len(self.collisions), self.vec_len * len(self.bodies)).zero_())
+        Jc = self._M.new_zeros(len(self.collisions), self.vec_len * len(self.bodies))
         for i, collision in enumerate(self.collisions):
             c = collision[0]  # c = (normal, collision_pt_1, collision_pt_2)
             i1 = collision[1]
             i2 = collision[2]
-            J1 = torch.cat([cross_2d(c[1], c[0]).unsqueeze(1),
+            J1 = torch.cat([cross_2d(c[1], c[0]).reshape(1, 1),
                             c[0].unsqueeze(0)], dim=1)
-            J2 = -torch.cat([cross_2d(c[2], c[0]).unsqueeze(1),
+            J2 = -torch.cat([cross_2d(c[2], c[0]).reshape(1, 1),
                              c[0].unsqueeze(0)], dim=1)
             Jc[i, i1 * self.vec_len:(i1 + 1) * self.vec_len] = J1
             Jc[i, i2 * self.vec_len:(i2 + 1) * self.vec_len] = J2
         return Jc
 
     def Jf(self):
-        Jf = Variable(Tensor(len(self.collisions) * self.fric_dirs,
-                             self.vec_len * len(self.bodies)).zero_())
+        Jf = self._M.new_zeros(len(self.collisions) * self.fric_dirs,
+                               self.vec_len * len(self.bodies))
         for i, collision in enumerate(self.collisions):
             c = collision[0]  # c = (normal, collision_pt_1, collision_pt_2)
             dir1 = left_orthogonal(c[0])
@@ -195,15 +194,15 @@ class World:
             i1 = collision[1]  # body 1 index
             i2 = collision[2]  # body 2 index
             J1 = torch.cat([
-                torch.cat([cross_2d(c[1], dir1).unsqueeze(1),
+                torch.cat([cross_2d(c[1], dir1).reshape(1, 1),
                            dir1.unsqueeze(0)], dim=1),
-                torch.cat([cross_2d(c[1], dir2).unsqueeze(1),
+                torch.cat([cross_2d(c[1], dir2).reshape(1, 1),
                            dir2.unsqueeze(0)], dim=1),
             ], dim=0)
             J2 = torch.cat([
-                torch.cat([cross_2d(c[2], dir1).unsqueeze(1),
+                torch.cat([cross_2d(c[2], dir1).reshape(1, 1),
                            dir1.unsqueeze(0)], dim=1),
-                torch.cat([cross_2d(c[2], dir2).unsqueeze(1),
+                torch.cat([cross_2d(c[2], dir2).reshape(1, 1),
                            dir2.unsqueeze(0)], dim=1),
             ], dim=0)
             Jf[i * self.fric_dirs:(i + 1) * self.fric_dirs,
@@ -217,7 +216,7 @@ class World:
 
     def _memoized_mu(self, *collisions):
         # collisions is argument so that cacheing can be implemented at some point
-        mu = Variable(Tensor(len(self.collisions)).zero_())
+        mu = self._M.new_zeros(len(self.collisions))
         for i, collision in enumerate(self.collisions):
             i1 = collision[1]
             i2 = collision[2]
@@ -230,10 +229,10 @@ class World:
 
     def _memoized_E(self, num_collisions):
         n = self.fric_dirs * num_collisions
-        E = Tensor(n, num_collisions).zero_()
+        E = self._M.new_zeros(n, num_collisions)
         for i in range(num_collisions):
             E[i * self.fric_dirs: (i + 1) * self.fric_dirs, i] += 1
-        return Variable(E)
+        return E
 
     def save_state(self):
         raise NotImplementedError

@@ -1,9 +1,8 @@
 import pygame
 
 import torch
-from torch.autograd import Variable
 
-from .utils import Indices, Params, wrap_variable, cart_to_polar, polar_to_cart
+from .utils import Indices, Params, wrap_tensor, cart_to_polar, polar_to_cart
 
 
 X = Indices.X
@@ -21,7 +20,7 @@ class Joint:
         self.num_constraints = 2
         self.body1 = body1
         self.body2 = body2
-        self.pos = wrap_variable(pos)
+        self.pos = wrap_tensor(pos)
         self.pos1 = self.pos - self.body1.pos
         self.r1, self.rot1 = cart_to_polar(self.pos1)
         self.rot2 = None
@@ -31,11 +30,11 @@ class Joint:
 
     def J(self):
         J1 = torch.cat([torch.cat([-self.pos1[Y:Y+1], self.pos1[X:X+1]]).unsqueeze(1),
-                        Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
+                        torch.eye(DIM).type_as(self.pos)], dim=1)
         J2 = None
         if self.body2 is not None:
             J2 = torch.cat([torch.cat([self.pos2[Y:Y+1], -self.pos2[X:X+1]]).unsqueeze(1),
-                            -Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
+                            -torch.eye(DIM).type_as(self.pos)], dim=1)
         return J1, J2
 
     def move(self, dt):
@@ -52,7 +51,7 @@ class Joint:
             self.pos2 = self.pos - self.body2.pos
 
     def draw(self, screen, pixels_per_meter=1):
-        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        pos = (self.pos.detach().numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.circle(screen, (0, 255, 0), pos, 2)]
 
 
@@ -65,18 +64,18 @@ class FixedJoint:
         self.body2 = body2
         self.pos = body1.pos
         self.pos1 = self.pos - self.body1.pos
-        self.rot1 = wrap_variable(0)
+        self.rot1 = self.pos.new_tensor(0)
         self.rot2 = None
         self.pos2 = self.pos - self.body2.pos
         self.rot2 = self.body2.p[0] - self.body1.p[0]  # inverted sign?
 
     def J(self):
         J1 = torch.cat([torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1),
-                        Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
-        J1 = torch.cat([J1, wrap_variable([1, 0, 0]).unsqueeze(0)], dim=0)
+                        torch.eye(DIM).type_as(self.pos)], dim=1)
+        J1 = torch.cat([J1, J1.new_tensor([1, 0, 0]).unsqueeze(0)], dim=0)
         J2 = torch.cat([torch.cat([self.pos2[Y], -self.pos2[X]]).unsqueeze(1),
-                        -Variable(torch.eye(DIM).type_as(self.pos.data))], dim=1)
-        J2 = torch.cat([J2, wrap_variable([-1, 0, 0]).unsqueeze(0)], dim=0)
+                        -torch.eye(DIM).type_as(self.pos)], dim=1)
+        J2 = torch.cat([J2, J2.new_tensor([-1, 0, 0]).unsqueeze(0)], dim=0)
         return J1, J2
 
     def move(self, dt):
@@ -90,8 +89,8 @@ class FixedJoint:
             self.pos2 = self.pos - self.body2.pos
 
     def draw(self, screen, pixels_per_meter=1):
-        start = (self.body1.pos.data.numpy() * pixels_per_meter).astype(int)
-        end = (self.body2.pos.data.numpy() * pixels_per_meter).astype(int)
+        start = (self.body1.pos.detach().numpy() * pixels_per_meter).astype(int)
+        end = (self.body2.pos.detach().numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.line(screen, (0, 255, 0), start, end, 2)]
 
 
@@ -107,7 +106,7 @@ class YConstraint:
         self.body2 = self.rot2 = None
 
     def J(self):
-        J = Variable(Tensor([0, 0, 1])).type_as(self.pos.data).unsqueeze(0)
+        J = self.pos.new_tensor([0, 0, 1]).unsqueeze(0)
         return J, None
 
     def move(self, dt):
@@ -118,7 +117,7 @@ class YConstraint:
         self.rot1 = self.body1.p[0]
 
     def draw(self, screen, pixels_per_meter=1):
-        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        pos = (self.pos.detach().numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.line(screen, (0, 255, 0), pos - [5, 0], pos + [5, 0], 2)]
 
 
@@ -134,7 +133,7 @@ class XConstraint:
         self.body2 = self.rot2 = None
 
     def J(self):
-        J = Variable(Tensor([0, 1, 0])).type_as(self.pos.data).unsqueeze(0)
+        J = self.pos.new_tensor([0, 1, 0]).unsqueeze(0)
         return J, None
 
     def move(self, dt):
@@ -145,7 +144,7 @@ class XConstraint:
         self.rot1 = self.body1.p[0]
 
     def draw(self, screen, pixels_per_meter=1):
-        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        pos = (self.pos.detach().numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.line(screen, (0, 255, 0), pos - [0, 5], pos + [0, 5], 2)]
 
 
@@ -161,7 +160,7 @@ class RotConstraint:
         self.body2 = self.rot2 = None
 
     def J(self):
-        J = Variable(Tensor([1, 0, 0])).type_as(self.pos.data).unsqueeze(0)
+        J = self.pos.tensor([1, 0, 0]).unsqueeze(0)
         return J, None
 
     def move(self, dt):
@@ -172,7 +171,7 @@ class RotConstraint:
         self.rot1 = self.body1.p[0]
 
     def draw(self, screen, pixels_per_meter=1):
-        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        pos = (self.pos.detach().numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.circle(screen, (0, 255, 0), pos, 5, 1)]
 
 
@@ -188,10 +187,10 @@ class TotalConstraint:
         self.r1, self.rot1 = cart_to_polar(self.pos1)
 
         self.body2 = self.rot2 = None
-        self.eye = torch.eye(self.num_constraints).type_as(self.pos.data)
+        self.eye = torch.eye(self.num_constraints).type_as(self.pos)
 
     def J(self):
-        J = Variable(self.eye)
+        J = self.eye
         return J, None
 
     def move(self, dt):
@@ -203,7 +202,7 @@ class TotalConstraint:
         self.pos = self.body1.pos + self.pos1
 
     def draw(self, screen, pixels_per_meter=1):
-        pos = (self.pos.data.numpy() * pixels_per_meter).astype(int)
+        pos = (self.pos.detach().numpy() * pixels_per_meter).astype(int)
         return [pygame.draw.circle(screen, (0, 255, 0), pos + 1, 5, 1),
                 pygame.draw.line(screen, (0, 255, 0), pos - [5, 0], pos + [5, 0], 2),
                 pygame.draw.line(screen, (0, 255, 0), pos - [0, 5], pos + [0, 5], 2)]

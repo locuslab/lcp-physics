@@ -4,17 +4,13 @@ Based on: M. B. Cline, Rigid body simulation with contact and constraints, 2002
 """
 
 import torch
-from torch.autograd import Variable
 
 from scipy.sparse.csc import csc_matrix
 from scipy.sparse.linalg.dsolve.linsolve import splu, spsolve
 import numpy as np
 
-from .utils import Params, binverse
+from .utils import Params
 from lcp_physics.lcp.lcp import LCPFunction
-
-
-Tensor = Params.TENSOR_TYPE
 
 
 class Engine:
@@ -39,12 +35,12 @@ class PdipmEngine(Engine):
         f = world.apply_forces(t)
         u = torch.matmul(world.M(), world.get_v()) + dt * f
         if neq > 0:
-            u = torch.cat([u, Variable(Tensor(neq).zero_())])
+            u = torch.cat([u, u.new_zeros(neq)])
         if not world.collisions:
             # No contact constraints, no complementarity conditions
             if neq > 0:
                 P = torch.cat([torch.cat([world.M(), -Je.t()], dim=1),
-                               torch.cat([Je, Variable(Tensor(neq, neq).zero_())],
+                               torch.cat([Je, Je.new_zeros(neq, neq)],
                                          dim=1)])
             else:
                 P = world.M()
@@ -61,11 +57,11 @@ class PdipmEngine(Engine):
             v = torch.matmul(Jc, world.get_v()) * world.restitutions()
             M = world.M().unsqueeze(0)
             if neq > 0:
-                b = Variable(Tensor(Je.size(0)).unsqueeze(0).zero_())
+                b = Je.new_zeros(Je.size(0)).unsqueeze(0)
                 Je = Je.unsqueeze(0)
             else:
-                b = Variable(None)
-                Je = Variable(Tensor())
+                b = torch.tensor([])
+                Je = torch.tensor([])
             Jc = Jc.unsqueeze(0)
             u = u[:world.M().size(0)].unsqueeze(0)
             v = v.unsqueeze(0)
@@ -73,16 +69,13 @@ class PdipmEngine(Engine):
             mu = world.mu().unsqueeze(0)
             Jf = world.Jf().unsqueeze(0)
             G = torch.cat([Jc, Jf,
-                           Variable(Tensor(Jf.size(0), mu.size(1), Jf.size(2))
-                                    .zero_())], dim=1)
-            F = Variable(Tensor(G.size(1), G.size(1)).zero_().unsqueeze(0))
+                           Jf.new_zeros(Jf.size(0), mu.size(1), Jf.size(2))], dim=1)
+            F = G.new_zeros(G.size(1), G.size(1)).unsqueeze(0)
             F[:, Jc.size(1):-E.size(2), -E.size(2):] = E
             F[:, -mu.size(1):, :mu.size(2)] = mu
             F[:, -mu.size(1):, mu.size(2):mu.size(2) + E.size(1)] = \
                 -E.transpose(1, 2)
-            h = torch.cat([v,
-                           Variable(Tensor(v.size(0), Jf.size(1) + mu.size(1))
-                                    .zero_())], 1)
+            h = torch.cat([v, v.new_zeros(v.size(0), Jf.size(1) + mu.size(1))], 1)
 
             x = -self.lcp_solver(max_iter=self.max_iter, verbose=-1)(M, u, G, h, Je, b, F)
         new_v = x[:world.vec_len * len(world.bodies)].squeeze(0)
@@ -100,13 +93,12 @@ class PdipmEngine(Engine):
         if Jc is not None:
             gc = torch.matmul(Jc, v) + torch.matmul(Jc, v) * -world.restitutions()
 
-        u = torch.cat([Variable(Tensor(Je.size(1)).zero_()), ge])
+        u = torch.cat([Je.new_zeros(Je.size(1)), ge])
         if Jc is None:
             neq = Je.size(0) if Je.ndimension() > 0 else 0
             if neq > 0:
                 P = torch.cat([torch.cat([M, -Je.t()], dim=1),
-                               torch.cat([Je, Variable(Tensor(neq, neq).zero_())],
-                                         dim=1)])
+                               torch.cat([Je, Je.new_zeros(neq, neq)], dim=1)])
             else:
                 P = M
             if self.cached_inverse is None:
@@ -122,7 +114,7 @@ class PdipmEngine(Engine):
             b = u[M.size(0):].unsqueeze(0)
             M = M.unsqueeze(0)
             v = v.unsqueeze(0)
-            F = Variable(Tensor(Jc.size(1), Jc.size(1)).zero_().unsqueeze(0))
+            F = Jc.new_zeros(Jc.size(1), Jc.size(1)).unsqueeze(0)
             x = self.lcp_solver()(M, h, Jc, v, Je, b, F)
         dp = -x[:M.size(0)]
         return dp

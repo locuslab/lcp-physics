@@ -4,7 +4,6 @@ import math
 import pygame
 
 import torch
-from torch.autograd import Variable
 
 
 class Params:
@@ -32,11 +31,11 @@ class Params:
     DEFAULT_COLLISION = 'DiffCollisionHandler'
 
     # Tensor type
-    TENSOR_TYPE = torch.DoubleTensor
+    TENSOR_TYPE = torch.double
     # TENSOR_TYPE = torch.cuda.FloatTensor
 
     # Post stabilization flag
-    POST_STABILIZATION = False
+    POST_STABILIZATION = True
 
     def __init__(self):
         pass
@@ -77,7 +76,7 @@ def cart_to_polar(cart_vec, positive=True):
     """
     r = cart_vec.norm()
     theta = torch.atan2(cart_vec[Indices.Y], cart_vec[Indices.X])
-    if theta.data[0] < 0 and positive:
+    if theta.item() < 0 and positive:
         theta = theta + 2 * math.pi
     return r, theta
 
@@ -93,54 +92,63 @@ def polar_to_cart(r, theta):
 def cross_2d(v1, v2):
     """Two dimensional cross product.
     """
-    v1 = adapt_zero_dim(v1)
-    v2 = adapt_zero_dim(v2)
     return v1[0] * v2[1] - v1[1] * v2[0]
 
 
 def left_orthogonal(v):
     """Get the (left) orthogonal vector to the provided vector.
     """
-    v = adapt_zero_dim(v)
-    return torch.cat([v[1], -v[0]])
+    return torch.stack([v[1], -v[0]])
 
 
 def rotation_matrix(ang):
     """Get the rotation matrix for a specific angle.
     """
     s, c = torch.sin(ang), torch.cos(ang)
-    rot_mat = Variable(Params.TENSOR_TYPE(2, 2))
+    rot_mat = ang.new_empty(2, 2)
     rot_mat[0, 0] = rot_mat[1, 1] = c
     rot_mat[0, 1], rot_mat[1, 0] = -s, s
     return rot_mat
 
 
-def binverse(x):
-    """Simple loop for batch inverse.
+# def binverse(x):
+#     """Simple loop for batch inverse.
+#     """
+#     assert(x.dim() == 3), 'Input does not have batch dimension.'
+#     x_ = x.data if type(x) is Variable else x
+#     ret = x_.new(x.size())
+#     ret = Variable(ret) if type(x) is Variable else ret
+#     for i in range(len(x)):
+#         ret[i] = torch.inverse(x[i])
+#     return ret
+
+
+# def wrap_variable(x, *args, **kwargs):
+#     """Wrap array or scalar in Variable, if not already.
+#     """
+#     x = x if hasattr(x, '__len__') else [x]  # check if x is scalar
+#     return x if isinstance(x, Variable) \
+#         else Variable(Params.TENSOR_TYPE(x), *args, **kwargs)
+
+
+# def adapt_zero_dim(x):
+#     """Compatibility utility for pytorch 0.4.
+#     """
+#     if x.dim() == 1:
+#         x = x.unsqueeze(1)
+#     return x
+
+
+def wrap_tensor(x, *args, **kwargs):
+    """Wrap array or scalar in torch Tensor, if not already.
     """
-    assert(x.dim() == 3), 'Input does not have batch dimension.'
-    x_ = x.data if type(x) is Variable else x
-    ret = x_.new(x.size())
-    ret = Variable(ret) if type(x) is Variable else ret
-    for i in range(len(x)):
-        ret[i] = torch.inverse(x[i])
-    return ret
 
-
-def wrap_variable(x, *args, **kwargs):
-    """Wrap array or scalar in Variable, if not already.
-    """
-    x = x if hasattr(x, '__len__') else [x]  # check if x is scalar
-    return x if isinstance(x, Variable) \
-        else Variable(Params.TENSOR_TYPE(x), *args, **kwargs)
-
-
-def adapt_zero_dim(x):
-    """Compatibility utility for pytorch 0.4.
-    """
-    if x.dim() == 1:
-        x = x.unsqueeze(1)
-    return x
+    if isinstance(x, torch.Tensor):
+        return x
+    else:
+        if 'dtype' not in kwargs:
+            kwargs['dtype'] = Params.TENSOR_TYPE
+        return torch.tensor(x, *args, **kwargs)
 
 
 def plot(y_axis, x_axis=None):
@@ -148,8 +156,8 @@ def plot(y_axis, x_axis=None):
     if x_axis is None:
         x_axis = range(len(y_axis))
     else:
-        x_axis = [x.data[0] if x.__class__ is Variable else x[0] for x in x_axis]
-    y_axis = [y.data[0] if y.__class__ is Variable else y[0] for y in y_axis]
+        x_axis = [x.item() if x.__class__ is torch.Tensor else x[0] for x in x_axis]
+    y_axis = [y.item() if y.__class__ is torch.Tensor else y[0] for y in y_axis]
     plt.plot(x_axis, y_axis)
     plt.show()
 

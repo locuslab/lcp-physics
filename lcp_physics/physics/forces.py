@@ -1,9 +1,8 @@
-from torch.autograd import Variable
+import torch
+from .utils import Params, wrap_tensor
 
-from .utils import Params, wrap_variable
 
-
-Tensor = Params.TENSOR_TYPE
+DTYPE = Params.TENSOR_TYPE
 
 
 def down_force(t):
@@ -37,13 +36,13 @@ class ExternalForce:
        and a multiplier that multiplies such vector.
     """
     # Pre-store basic forces
-    DOWN = Variable(Tensor([0, 0, 1]))
-    RIGHT = Variable(Tensor([0, 1, 0]))
-    ROT = Variable(Tensor([1, 0, 0]))
-    ZEROS = Variable(Tensor([0, 0, 0]))
+    DOWN = torch.tensor([0, 0, 1], dtype=DTYPE)
+    RIGHT = torch.tensor([0, 1, 0], dtype=DTYPE)
+    ROT = torch.tensor([1, 0, 0], dtype=DTYPE)
+    ZEROS = torch.tensor([0, 0, 0], dtype=DTYPE)
 
     def __init__(self, force_func=down_force, multiplier=100.):
-        self.multiplier = wrap_variable(multiplier)
+        self.multiplier = wrap_tensor(multiplier)
         self.force = lambda t: force_func(t) * self.multiplier
         self.body = None
 
@@ -53,7 +52,7 @@ class Gravity(ExternalForce):
        magnitude body.mass * g.
     """
     def __init__(self, g=10.0):
-        self.multiplier = wrap_variable(g)
+        self.multiplier = wrap_tensor(g)
         self.body = None
 
     def force(self, t):
