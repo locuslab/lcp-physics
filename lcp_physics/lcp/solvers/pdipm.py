@@ -64,7 +64,7 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
 
         if neq > 0:
             A_ = torch.cat([torch.cat([G, torch.eye(nineq).type_as(Q_tilde).repeat(batch_size, 1, 1)], 2),
-                            torch.cat([A, torch.zeros(batch_size, neq, nineq).type_as(Q_tilde)], 2)], 1)
+                            torch.cat([A, Q_tilde.new_zeros(batch_size, neq, nineq)], 2)], 1)
         else:
             A_ = torch.cat([G, torch.eye(nineq).type_as(Q_tilde).unsqueeze(0)], 2)
 
@@ -77,11 +77,11 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
             torch.zeros(batch_size, nineq).type_as(Q),
             -h, -b if b is not None else None, ns)
     elif solver == KKTSolvers.LU_PARTIAL:
-        d = torch.ones(batch_size, nineq).type_as(Q)
+        d = Q.new_ones(batch_size, nineq)
         factor_kkt(S_LU, R, d)
         x, s, z, y = solve_kkt(
             Q_LU, d, G, A, S_LU,
-            p, torch.zeros(batch_size, nineq).type_as(Q),
+            p, Q.new_zeros(batch_size, nineq),
             -h, -b if neq > 0 else None)
     elif solver == KKTSolvers.IR_UNOPT:
         D = torch.eye(nineq).repeat(batch_size, 1, 1).type_as(Q)
@@ -186,10 +186,10 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
         t4 = torch.sum(s * z, 1).squeeze()
         sig = (t3 / t4)**3
 
-        rx = torch.zeros(batch_size, nz).type_as(Q)
+        rx = Q.new_zeros(batch_size, nz)
         rs = ((-mu * sig).repeat(nineq, 1).t() + ds_aff * dz_aff) / s
-        rz = torch.zeros(batch_size, nineq).type_as(Q)
-        ry = torch.zeros(batch_size, neq).type_as(Q)
+        rz = Q.new_zeros(batch_size, nineq)
+        ry = Q.new_zeros(batch_size, neq)
 
         if solver == KKTSolvers.LU_FULL:
             D = bdiag(d)
@@ -443,7 +443,7 @@ a non-zero diagonal.
         S_LU_21 = G_invQ_AT.bmm(U_A_invQ_AT_inv)
         T = G_invQ_AT.transpose(1, 2).btrisolve(*LU_A_invQ_AT)
         S_LU_12 = U_A_invQ_AT.bmm(T)
-        S_LU_22 = torch.zeros(nBatch, nineq, nineq).type_as(Q)
+        S_LU_22 = Q.new_zeros(nBatch, nineq, nineq)
         S_LU_data = torch.cat((torch.cat((S_LU_11, S_LU_12), 2),
                                torch.cat((S_LU_21, S_LU_22), 2)),
                               1)
@@ -451,7 +451,7 @@ a non-zero diagonal.
 
         R -= G_invQ_AT.bmm(T)
     else:
-        S_LU_data = torch.zeros(nBatch, nineq, nineq).type_as(Q)
+        S_LU_data = Q.new_zeros(nBatch, nineq, nineq)
 
     S_LU = [S_LU_data, S_LU_pivots]
     return Q_LU, S_LU, R

@@ -44,9 +44,9 @@ class LCPFunction(Function):
 
         pdipm.factor_kkt(self.S_LU, self.R, d)
         dx, _, dlam, dnu = pdipm.solve_kkt(self.Q_LU, d, G, A, self.S_LU,
-                                           dl_dzhat, torch.zeros(batch_size, nineq).type_as(G),
-                                           torch.zeros(batch_size, nineq).type_as(G),
-                                           torch.zeros(batch_size, neq).type_as(G))
+                                           dl_dzhat, G.new_zeros(batch_size, nineq),
+                                           G.new_zeros(batch_size, nineq),
+                                           G.new_zeros(batch_size, neq))
 
         dps = dx
         dGs = (bger(dlam, zhats) + bger(self.lams, dx))

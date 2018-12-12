@@ -12,7 +12,7 @@ def to_np(t):
     elif t.nelement() == 0:
         return np.array([])
     else:
-        return t.cpu().numpy()
+        return t.detach().cpu().numpy()
 
 
 def bger(x, y):
