@@ -4,10 +4,10 @@ import torch
 
 from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.forces import Gravity
-from lcp_physics.physics.utils import Params,   wrap_tensor
+from lcp_physics.physics.utils import Defaults
 
 
-DTYPE = Params.TENSOR_TYPE
+DTYPE = Defaults.DEFAULT_DTYPE
 
 
 class TestBodies(unittest.TestCase):
@@ -33,10 +33,10 @@ class TestBodies(unittest.TestCase):
         c4 = Circle(torch.tensor([0, 0, 0], dtype=DTYPE), torch.tensor(1, dtype=DTYPE), vel=torch.tensor([1, 1, 1], dtype=DTYPE))
         c5 = Circle([0, 0, 0], 1, [0, 0, 0], mass=torch.tensor(1, dtype=DTYPE))
 
-        c1.add_no_collision(c2)
+        c1.add_no_contact(c2)
         c2.add_force(Gravity())
         c2.apply_forces(1)
-        c3.set_p(wrap_tensor([1, 1, 1]))
+        c3.set_p(c3.p.new_tensor([1, 1, 1]))
         c4.move(0.1)
 
     def testHull(self):
@@ -50,10 +50,10 @@ class TestBodies(unittest.TestCase):
         r4 = Rect(torch.tensor([0, 0, 0], dtype=DTYPE), [1, 1], vel=torch.tensor([1, 1, 1], dtype=DTYPE))
         r5 = Rect([0, 0, 0], [1, 1], [0, 0, 0], mass=torch.tensor(1, dtype=DTYPE))
 
-        r1.add_no_collision(r2)
+        r1.add_no_contact(r2)
         r2.add_force(Gravity())
         r2.apply_forces(1)
-        r3.set_p(wrap_tensor([1, 1, 1]))
+        r3.set_p(r3.p.new_tensor([1, 1, 1]))
         r4.move(0.1)
 
 

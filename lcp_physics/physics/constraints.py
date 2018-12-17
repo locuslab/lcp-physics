@@ -2,14 +2,12 @@ import pygame
 
 import torch
 
-from .utils import Indices, Params, wrap_tensor, cart_to_polar, polar_to_cart
+from .utils import Indices, Defaults, cart_to_polar, polar_to_cart
 
 
 X = Indices.X
 Y = Indices.Y
-DIM = Params.DIM
-
-Tensor = Params.TENSOR_TYPE
+DIM = Defaults.DIM
 
 
 class Joint:
@@ -20,7 +18,7 @@ class Joint:
         self.num_constraints = 2
         self.body1 = body1
         self.body2 = body2
-        self.pos = wrap_tensor(pos)
+        self.pos = body1.p.new_tensor(pos)
         self.pos1 = self.pos - self.body1.pos
         self.r1, self.rot1 = cart_to_polar(self.pos1)
         self.rot2 = None

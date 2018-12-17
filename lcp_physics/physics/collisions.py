@@ -7,7 +7,7 @@ import torch
 from torch.autograd import Variable
 
 from .bodies import Circle
-from .utils import Indices, Params, left_orthogonal, wrap_tensor
+from .utils import Indices, Params, wrap_variable, left_orthogonal
 
 
 X = Indices.X
@@ -41,7 +41,7 @@ class OdeCollisionHandler(CollisionHandler):
             point = Variable(Tensor(point))
             penetration = Variable(Tensor([penetration]))
             penetration -= 2 * world.eps
-            if penetration.item() < -2 * world.eps:
+            if penetration.data[0] < -2 * world.eps:
                 return
             p1 = point - Variable(Tensor(geom1.getPosition()))
             p2 = point - Variable(Tensor(geom2.getPosition()))
@@ -74,7 +74,7 @@ class DiffCollisionHandler(CollisionHandler):
             normal = b1.pos - b2.pos
             dist = normal.norm()
             penetration = r - dist
-            if penetration.item() < -world.eps:
+            if penetration.data[0] < -world.eps:
                 return
             normal = normal / dist
             p1 = -normal * (b1.rad - penetration / 2)
@@ -95,11 +95,11 @@ class DiffCollisionHandler(CollisionHandler):
                 if len(ids_used) == 2:
                     # use orthogonal when closest is in segment
                     search_dir = left_orthogonal(simplex[ids_used[0]] - simplex[ids_used[1]])
-                    if search_dir.dot(test_point - simplex[ids_used[0]]).item() < 0:
+                    if search_dir.dot(test_point - simplex[ids_used[0]]).data[0] < 0:
                         search_dir = -search_dir
                 else:
                     search_dir = test_point - closest
-                if search_dir[0].item() == 0 and search_dir[1].item() == 0:
+                if search_dir.data[0] == 0 and search_dir.data[1] == 0:
                     break
                 support, _ = self.get_support(b2.verts, search_dir)
                 if support in set(simplex):
@@ -111,13 +111,13 @@ class DiffCollisionHandler(CollisionHandler):
                 closest = closest + b2.pos
                 best_pt1 = closest - b1.pos
                 best_dist = torch.norm(closest - b1.pos) - b1.rad
-                if best_dist.item() > world.eps:
+                if best_dist.data[0] > world.eps:
                     return
                 # normal points from closest point to circle center
                 best_normal = -best_pt1 / torch.norm(best_pt1)
             else:
                 # SAT for circle vs hull if deep penetration
-                best_dist = wrap_tensor(-1e10)
+                best_dist = wrap_variable(-1e10)
                 num_verts = len(b2.verts)
                 start_edge = b2.last_sat_idx
                 for i in range(start_edge, num_verts + start_edge):
@@ -130,9 +130,9 @@ class DiffCollisionHandler(CollisionHandler):
                     # get distance from circle point to edge
                     dist = normal.dot(center - b2.verts[idx]) - b1.rad
 
-                    if dist.item() > best_dist.item():
+                    if dist.data[0] > best_dist.data[0]:
                         b2.last_sat_idx = idx
-                        if dist.item() > world.eps:
+                        if dist.data[0] > world.eps:
                             # exit early if separating axis found
                             return
                         best_dist = dist
@@ -150,13 +150,13 @@ class DiffCollisionHandler(CollisionHandler):
             # TODO Optimize for rectangle vs rectangle?
             contact1 = self.test_separations(b1, b2, eps=world.eps)
             b1.last_sat_idx = contact1[6]
-            if contact1[0].item() > world.eps:
+            if contact1[0].data[0] > world.eps:
                 return
             contact2 = self.test_separations(b2, b1, eps=world.eps)
             b2.last_sat_idx = contact2[6]
-            if contact2[0].item() > world.eps:
+            if contact2[0].data[0] > world.eps:
                 return
-            if contact2[0].item() > contact1[0].item():
+            if contact2[0].data[0] > contact1[0].data[0]:
                 normal = -contact2[3]
                 half_edge_norm = contact2[5] / 2
                 ref_edge_idx = contact2[6]
@@ -175,7 +175,7 @@ class DiffCollisionHandler(CollisionHandler):
                 pts = []
                 for v in clipped_verts:
                     dist = normal.dot(v - b2.verts[ref_edge_idx])
-                    if dist.item() <= world.eps:
+                    if dist.data[0] <= world.eps:
                         pt1 = v + normal * -dist
                         pt2 = pt1 + b2.pos - b1.pos
                         pts.append((normal, pt2, pt1, -dist))
@@ -198,7 +198,7 @@ class DiffCollisionHandler(CollisionHandler):
                 pts = []
                 for v in clipped_verts:
                     dist = normal.dot(v - b1.verts[ref_edge_idx])
-                    if dist.item() <= world.eps:
+                    if dist.data[0] <= world.eps:
                         pt1 = v + normal * -dist
                         pt2 = pt1 + b1.pos - b2.pos
                         pts.append((-normal, pt1, pt2, -dist))
@@ -212,7 +212,7 @@ class DiffCollisionHandler(CollisionHandler):
         best_point = None
         best_norm = -1.
         for i, p in enumerate(points):
-            cur_norm = p.dot(direction).item()
+            cur_norm = p.dot(direction).data[0]
             if cur_norm >= best_norm:
                 best_point = p
                 best_idx = i
@@ -223,7 +223,7 @@ class DiffCollisionHandler(CollisionHandler):
     def test_separations(hull1, hull2, eps=0):
         verts1, verts2 = hull1.verts, hull2.verts
         num_verts = len(verts1)
-        best_dist = wrap_tensor(-1e10)
+        best_dist = wrap_variable(-1e10)
         best_normal = None
         best_vertex = -1
         start_edge = hull1.last_sat_idx
@@ -238,8 +238,8 @@ class DiffCollisionHandler(CollisionHandler):
             # get distance from support point to edge
             dist = normal.dot(support_point - verts1[idx])
 
-            if dist.item() > best_dist.item():
-                if dist.item() > eps:
+            if dist.data[0] > best_dist.data[0]:
+                if dist.data[0] > eps:
                     # exit early if separating axis found
                     return dist, None, None, None, None, None, idx
                 best_dist = dist
@@ -263,7 +263,7 @@ class DiffCollisionHandler(CollisionHandler):
             edge = inc_verts[(i+1) % len(inc_verts)] - inc_verts[i]
             edge_norm = edge.norm()
             inc_normal = left_orthogonal(edge) / edge_norm
-            dot = ref_normal.dot(inc_normal).item()
+            dot = ref_normal.dot(inc_normal).data[0]
             if dot < min_dot:
                 min_dot = dot
                 best_edge = i
@@ -278,13 +278,13 @@ class DiffCollisionHandler(CollisionHandler):
         distance1 = normal.dot(verts[1]) + offset
 
         # If the points are behind the plane
-        if distance0.item() >= 0.0:
+        if distance0.data[0] >= 0.0:
             clipped_verts.append(verts[0])
-        if distance1.item() >= 0.0:
+        if distance1.data[0] >= 0.0:
             clipped_verts.append(verts[1])
 
         # If the points are on different sides of the plane
-        if distance0.item() * distance1.item() < 0.0 or len(clipped_verts) < 2:
+        if distance0.data[0] * distance1.data[0] < 0.0 or len(clipped_verts) < 2:
             # Find intersection point of edge and plane
             interp = distance0 / (distance0 - distance1)
 
@@ -300,9 +300,9 @@ class DiffCollisionHandler(CollisionHandler):
             return simplex[0], [0]
         elif len(simplex) == 2:
             u, v = DiffCollisionHandler.get_barycentric_coords(point, simplex)
-            if u.item() <= 0:
+            if u.data[0] <= 0:
                 return simplex[1], [1]
-            elif v.item() <= 0:
+            elif v.data[0] <= 0:
                 return simplex[0], [0]
             else:
                 return u * simplex[0] + v * simplex[1], [0, 1]
@@ -312,19 +312,19 @@ class DiffCollisionHandler(CollisionHandler):
             uCA, vCA = DiffCollisionHandler.get_barycentric_coords(point, [simplex[2], simplex[0]])
             uABC, vABC, wABC = DiffCollisionHandler.get_barycentric_coords(point, simplex)
 
-            if vAB.item() <= 0 and uCA.item() <= 0:
+            if vAB.data[0] <= 0 and uCA.data[0] <= 0:
                 return simplex[0], [0]
-            elif vBC.item() <= 0 and uAB.item() <= 0:
+            elif vBC.data[0] <= 0 and uAB.data[0] <= 0:
                 return simplex[1], [1]
-            elif vCA.item() <= 0 and uBC.item() <= 0:
+            elif vCA.data[0] <= 0 and uBC.data[0] <= 0:
                 return simplex[2], [2]
-            elif uAB.item() > 0 and vAB.item() > 0 and wABC.item() <= 0:
+            elif uAB.data[0] > 0 and vAB.data[0] > 0 and wABC.data[0] <= 0:
                 return uAB * simplex[0] + vAB * simplex[1], [0, 1]
-            elif uBC.item() > 0 and vBC.item() > 0 and uABC.item() <= 0:
+            elif uBC.data[0] > 0 and vBC.data[0] > 0 and uABC.data[0] <= 0:
                 return uBC * simplex[1] + vBC * simplex[2], [1, 2]
-            elif uCA.item() > 0 and vCA.item() > 0 and vABC.item() <= 0:
+            elif uCA.data[0] > 0 and vCA.data[0] > 0 and vABC.data[0] <= 0:
                 return uCA * simplex[2] + vCA * simplex[0], [2, 0]
-            elif uABC.item() > 0 and vABC.item() > 0 and wABC.item() > 0:
+            elif uABC.data[0] > 0 and vABC.data[0] > 0 and wABC.data[0] > 0:
                 return point, [0, 1, 2]
             else:
                 print(uAB, vAB, uBC, vBC, uCA, vCA, uABC, vABC, wABC)

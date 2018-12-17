@@ -7,12 +7,12 @@ from torch.autograd import Variable
 from lcp_physics.physics.bodies import Circle, Rect
 from lcp_physics.physics.constraints import Joint, TotalConstraint, XConstraint, YConstraint
 from lcp_physics.physics.forces import ExternalForce, down_force, vert_impulse, hor_impulse
-from lcp_physics.physics.utils import Params
+from lcp_physics.physics.utils import Defaults
 from lcp_physics.physics.world import World, run_world
 
 
 TIME = 20
-DT = Params.DEFAULT_DT
+DT = Defaults.DEFAULT_DT
 
 
 class TestDemos(unittest.TestCase):
@@ -69,7 +69,7 @@ class TestDemos(unittest.TestCase):
         r.add_force(ExternalForce(down_force, multiplier=100))
         r.v[0] = -1
         for b in bodies:
-            b.add_no_collision(r)
+            b.add_no_contact(r)
         # bodies.append(r)
 
         world = World(bodies, joints, dt=DT)
@@ -88,7 +88,7 @@ class TestDemos(unittest.TestCase):
             r = Rect([300, 50 + 50 * i], [20, 60])
             bodies.append(r)
             joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
-            bodies[-1].add_no_collision(bodies[-2])
+            bodies[-1].add_no_contact(bodies[-2])
         bodies[-1].add_force(ExternalForce(down_force, multiplier=100))
 
         # make projectile
@@ -189,11 +189,11 @@ class TestDemos(unittest.TestCase):
             c1 = Circle([250, 210], 30)
             bodies.append(c1)
             c1.add_force(ExternalForce(learned_force))
-            c1.add_no_collision(target)
+            c1.add_no_contact(target)
 
             c2 = Circle([400, 250], 30)
             bodies.append(c2)
-            c2.add_no_collision(target)
+            c2.add_no_contact(target)
 
             world = World(bodies, joints, dt=DT)
             return world, c2, target
@@ -267,7 +267,7 @@ class TestDemos(unittest.TestCase):
                     r = Rect([300, 50 + 50 * i], [20, 60], mass=mass)
                 bodies.append(r)
                 joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
-                bodies[-1].add_no_collision(bodies[-2])
+                bodies[-1].add_no_contact(bodies[-2])
             bodies[-1].add_force(ExternalForce(down_force, multiplier=100))
 
             # make projectile
@@ -280,7 +280,7 @@ class TestDemos(unittest.TestCase):
             world = World(bodies, joints, dt=DT)
             return world, r
 
-        def positions_run_world(world, dt=Params.DEFAULT_DT, run_time=10,
+        def positions_run_world(world, dt=Defaults.DEFAULT_DT, run_time=10,
                                 screen=None, recorder=None):
             positions = [torch.cat([b.p for b in world.bodies])]
 

@@ -1,12 +1,17 @@
+"""Adapted from qpth: https://github.com/locuslab/qpth
+"""
+
 import torch
 from enum import Enum
+
+from ..util import efficient_btriunpack
 
 from lcp_physics.lcp.util import get_sizes, bdiag
 
 
 shown_btrifact_warning = False
 
-
+# @profile
 def btrifact_hack(x):
     global shown_btrifact_warning
     try:
@@ -36,7 +41,7 @@ our solver while increasing the number of iterations.
 
 Advanced users:
 You can also try to enable iterative refinement in the solver:
-https://github.com/locuslab/lcp/issues/6
+https://github.com/locuslab/qpth/issues/6
 --------
 """
 
@@ -47,6 +52,7 @@ class KKTSolvers(Enum):
     IR_UNOPT = 3
 
 
+# @profile
 def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
             eps=1e-12, verbose=-1, not_improved_lim=3,
             max_iter=20, solver=KKTSolvers.LU_PARTIAL):
@@ -92,12 +98,16 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
     else:
         raise NotImplementedError('Specified KKTSolver not implemented.')
 
-    M = torch.min(s, 1)[0].repeat(1, nineq)
-    I = M <= 0
+    # Make all of the slack variables >= 1.
+    M = torch.min(s, 1)[0]
+    M = M.view(M.size(0), 1).repeat(1, nineq)
+    I = M < 0
     s[I] -= M[I] - 1
 
-    M = torch.min(z, 1)[0].repeat(1, nineq)
-    I = M <= 0
+    # Make all of the inequality dual variables >= 1.
+    M = torch.min(z, 1)[0]
+    M = M.view(M.size(0), 1).repeat(1, nineq)
+    I = M < 0
     z[I] -= M[I] - 1
 
     best = {'resids': None, 'x': None, 'z': None, 's': None, 'y': None}
@@ -147,17 +157,20 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
                 nNotImproved += 1
             I_nz = I.repeat(nz, 1).t()
             I_nineq = I.repeat(nineq, 1).t()
-            best['resids'][I] = resids[I]
-            best['x'][I_nz] = x[I_nz]
-            best['z'][I_nineq] = z[I_nineq]
-            best['s'][I_nineq] = s[I_nineq]
+            # best['resids'][I] = resids[I]
+            # best['x'][I_nz] = x[I_nz]
+            # best['z'][I_nineq] = z[I_nineq]
+            # best['s'][I_nineq] = s[I_nineq]
+            best['resids'].masked_scatter_(I, resids[I])
+            best['x'].masked_scatter_(I_nz, x[I_nz])
+            best['z'].masked_scatter_(I_nineq, z[I_nineq])
+            best['s'].masked_scatter_(I_nineq, s[I_nineq])
             if neq > 0:
                 I_neq = I.repeat(neq, 1).t()
                 best['y'][I_neq] = y[I_neq]
         if nNotImproved == not_improved_lim or best['resids'].max() < eps or mu.min() > 1e100:
             if best['resids'].max() > 1. and verbose >= 0:
                 print(INACC_ERR)
-                print(best['resids'].max())
             return best['x'], best['y'], best['z'], best['s']
 
         if solver == KKTSolvers.LU_FULL:
@@ -212,7 +225,7 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
         dy = dy_aff + dy_cor if neq > 0 else None
         alpha = torch.min(0.999 * torch.min(get_step(z, dz),
                                             get_step(s, ds)),
-                          torch.ones(batch_size).type_as(Q))
+                          Q.new_ones(batch_size))
         alpha_nineq = alpha.repeat(nineq, 1).t()
         alpha_neq = alpha.repeat(neq, 1).t() if neq > 0 else None
         alpha_nz = alpha.repeat(nz, 1).t()
@@ -434,7 +447,7 @@ a non-zero diagonal.
         G_invQ_AT = torch.bmm(G, invQ_AT)
 
         LU_A_invQ_AT = btrifact_hack(A_invQ_AT)
-        P_A_invQ_AT, L_A_invQ_AT, U_A_invQ_AT = torch.btriunpack(*LU_A_invQ_AT)
+        P_A_invQ_AT, L_A_invQ_AT, U_A_invQ_AT = efficient_btriunpack(*LU_A_invQ_AT)
         P_A_invQ_AT = P_A_invQ_AT.type_as(A_invQ_AT)
 
         S_LU_11 = LU_A_invQ_AT[0]
@@ -459,7 +472,7 @@ a non-zero diagonal.
 
 factor_kkt_eye = None
 
-
+# @profile
 def factor_kkt(S_LU, R, d):
     """ Factor the U22 block that we can only do after we know D. """
     nBatch, nineq = d.size()
@@ -470,8 +483,12 @@ def factor_kkt(S_LU, R, d):
         # print('Updating batchedEye size.')
         factor_kkt_eye = torch.eye(nineq).repeat(
             nBatch, 1, 1).type_as(R).byte()
-    T = R.clone()
-    T[factor_kkt_eye] += (1. / d).view(-1)
+    # T = R.clone()
+    # T[factor_kkt_eye] += (1. / d).view(-1)
+    # more efficient version of these two lines in pytorch versions > 0.3.1
+    T = torch.zeros_like(R)
+    T.masked_scatter_(factor_kkt_eye, (1. / d).view(-1))
+    T += R.clone()
 
     T_LU = btrifact_hack(T)
 
@@ -480,10 +497,10 @@ def factor_kkt(S_LU, R, d):
         # TODO Don't use pivoting in most cases because
         # torch.btriunpack is inefficient here:
         oldPivotsPacked = S_LU[1][:, -nineq:] - neq
-        oldPivots, _, _ = torch.btriunpack(
+        oldPivots, _, _ = efficient_btriunpack(
             T_LU[0], oldPivotsPacked, unpack_data=False)
         newPivotsPacked = T_LU[1]
-        newPivots, _, _ = torch.btriunpack(
+        newPivots, _, _ = efficient_btriunpack(
             T_LU[0], newPivotsPacked, unpack_data=False)
 
         # Re-pivot the S_LU_21 block.

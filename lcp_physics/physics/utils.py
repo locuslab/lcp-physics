@@ -6,7 +6,7 @@ import pygame
 import torch
 
 
-class Params:
+class Defaults:
     """Aggregates general simulation parameters and defaults.
     """
     # Dimensions
@@ -28,14 +28,15 @@ class Params:
     DEFAULT_DT = 1.0 / DEFAULT_FPS
 
     DEFAULT_ENGINE = 'PdipmEngine'
-    DEFAULT_COLLISION = 'DiffCollisionHandler'
+    DEFAULT_CONTACT = 'DiffContactHandler'
 
-    # Tensor type
-    TENSOR_TYPE = torch.double
-    # TENSOR_TYPE = torch.cuda.FloatTensor
+    # Tensor defaults
+    DEFAULT_DTYPE = torch.float64
+    DEFAULT_DEVICE = torch.device('cpu')
+    DEFAULT_LAYOUT = torch.strided
 
     # Post stabilization flag
-    POST_STABILIZATION = True
+    POST_STABILIZATION = False
 
     def __init__(self):
         pass
@@ -111,44 +112,19 @@ def rotation_matrix(ang):
     return rot_mat
 
 
-# def binverse(x):
-#     """Simple loop for batch inverse.
-#     """
-#     assert(x.dim() == 3), 'Input does not have batch dimension.'
-#     x_ = x.data if type(x) is Variable else x
-#     ret = x_.new(x.size())
-#     ret = Variable(ret) if type(x) is Variable else ret
-#     for i in range(len(x)):
-#         ret[i] = torch.inverse(x[i])
-#     return ret
-
-
-# def wrap_variable(x, *args, **kwargs):
-#     """Wrap array or scalar in Variable, if not already.
-#     """
-#     x = x if hasattr(x, '__len__') else [x]  # check if x is scalar
-#     return x if isinstance(x, Variable) \
-#         else Variable(Params.TENSOR_TYPE(x), *args, **kwargs)
-
-
-# def adapt_zero_dim(x):
-#     """Compatibility utility for pytorch 0.4.
-#     """
-#     if x.dim() == 1:
-#         x = x.unsqueeze(1)
-#     return x
-
-
-def wrap_tensor(x, *args, **kwargs):
+def get_tensor(x, base_tensor=None):
     """Wrap array or scalar in torch Tensor, if not already.
     """
-
     if isinstance(x, torch.Tensor):
         return x
+    elif base_tensor is not None:
+        return base_tensor.new_tensor(x)
     else:
-        if 'dtype' not in kwargs:
-            kwargs['dtype'] = Params.TENSOR_TYPE
-        return torch.tensor(x, *args, **kwargs)
+        return torch.tensor(x,
+                            dtype=Defaults.DEFAULT_DTYPE,
+                            device=Defaults.DEFAULT_DEVICE,
+                            # layout=Params.DEFAULT_LAYOUT,
+                            )
 
 
 def plot(y_axis, x_axis=None):

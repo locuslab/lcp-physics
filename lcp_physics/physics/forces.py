@@ -1,8 +1,4 @@
-import torch
-from .utils import Params, wrap_tensor
-
-
-DTYPE = Params.TENSOR_TYPE
+from .utils import get_tensor
 
 
 def down_force(t):
@@ -36,13 +32,13 @@ class ExternalForce:
        and a multiplier that multiplies such vector.
     """
     # Pre-store basic forces
-    DOWN = torch.tensor([0, 0, 1], dtype=DTYPE)
-    RIGHT = torch.tensor([0, 1, 0], dtype=DTYPE)
-    ROT = torch.tensor([1, 0, 0], dtype=DTYPE)
-    ZEROS = torch.tensor([0, 0, 0], dtype=DTYPE)
+    DOWN = get_tensor([0, 0, 1])
+    RIGHT = get_tensor([0, 1, 0])
+    ROT = get_tensor([1, 0, 0])
+    ZEROS = get_tensor([0, 0, 0])
 
     def __init__(self, force_func=down_force, multiplier=100.):
-        self.multiplier = wrap_tensor(multiplier)
+        self.multiplier = multiplier
         self.force = lambda t: force_func(t) * self.multiplier
         self.body = None
 
@@ -52,7 +48,7 @@ class Gravity(ExternalForce):
        magnitude body.mass * g.
     """
     def __init__(self, g=10.0):
-        self.multiplier = wrap_tensor(g)
+        self.multiplier = g
         self.body = None
 
     def force(self, t):

@@ -5,24 +5,25 @@ import pygame
 
 import torch
 
-from .utils import Indices, Params, wrap_tensor, cross_2d, rotation_matrix
+from .utils import Indices, Defaults, get_tensor, cross_2d, rotation_matrix
 
 X = Indices.X
 Y = Indices.Y
-DIM = Params.DIM
-
-# DTYPE = Params.TENSOR_TYPE
+DIM = Defaults.DIM
 
 
 class Body(object):
     """Base class for bodies.
     """
-    def __init__(self, pos, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
-                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
+    def __init__(self, pos, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
+                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
-        self.eps = wrap_tensor(eps)
+        # get base tensor to define dtype, device and layout for others
+        self._set_base_tensor(locals())
+        self.eps = get_tensor(eps, base_tensor=self._base_tensor)
+
         # rotation & position vectors
-        pos = wrap_tensor(pos)
+        pos = get_tensor(pos, base_tensor=self._base_tensor)
         if pos.size(0) == 2:
             self.p = torch.cat([pos.new_zeros(1), pos])
         else:
@@ -31,13 +32,13 @@ class Body(object):
         self.pos = self.p[1:]
 
         # linear and angular velocity vector
-        vel = wrap_tensor(vel)
+        vel = get_tensor(vel, base_tensor=self._base_tensor)
         if vel.size(0) == 2:
             self.v = torch.cat([vel.new_zeros(1), vel])
         else:
             self.v = vel
 
-        self.mass = wrap_tensor(mass)
+        self.mass = get_tensor(mass, self._base_tensor)
         self.ang_inertia = self._get_ang_inertia(self.mass)
         # M can change if object rotates, not the case for now
         self.M = self.v.new_zeros(len(self.v), len(self.v))
@@ -45,8 +46,8 @@ class Body(object):
         self.M[:ang_sizes[0], :ang_sizes[1]] = self.ang_inertia
         self.M[ang_sizes[0]:, ang_sizes[1]:] = torch.eye(DIM).type_as(self.M) * self.mass
 
-        self.fric_coeff = wrap_tensor(fric_coeff)
-        self.restitution = wrap_tensor(restitution)
+        self.fric_coeff = get_tensor(fric_coeff, base_tensor=self._base_tensor)
+        self.restitution = get_tensor(restitution, base_tensor=self._base_tensor)
         self.forces = []
 
         self.col = col
@@ -54,18 +55,32 @@ class Body(object):
 
         self._create_geom()
 
+    def _set_base_tensor(self, args):
+        """Check if any tensor provided and if so set as base tensor to
+           use as base for other tensors' dtype, device and layout.
+        """
+        if hasattr(self, '_base_tensor') and self._base_tensor is not None:
+            return
+
+        for arg in args:
+            if isinstance(arg, torch.Tensor):
+                self._base_tensor = arg
+                return
+
+        # if no tensor provided, use defaults
+        self._base_tensor = get_tensor(0, base_tensor=None)
+        return
+
     def _create_geom(self):
         raise NotImplementedError
 
     def _get_ang_inertia(self, mass):
         raise NotImplementedError
 
-    # @profile
     def move(self, dt, update_geom_rotation=True):
         new_p = self.p + self.v * dt
         self.set_p(new_p, update_geom_rotation)
 
-    # @profile
     def set_p(self, new_p, update_geom_rotation=True):
         self.p = new_p
         # Reset memory pointers
@@ -84,23 +99,26 @@ class Body(object):
         return self.v.new_zeros(len(self.v)) \
                + sum([f.force(t) for f in self.forces])
 
-    def add_no_collision(self, other):
-        self.geom.no_collision.add(other.geom)
-        other.geom.no_collision.add(self.geom)
+    def add_no_contact(self, other):
+        self.geom.no_contact.add(other.geom)
+        other.geom.no_contact.add(self.geom)
 
     def add_force(self, f):
         self.forces.append(f)
         f.body = self
+        # match body's tensor type and device
+        f.multiplier = get_tensor(f.multiplier, base_tensor=self._base_tensor)
 
     def draw(self, screen, pixels_per_meter=1):
         raise NotImplementedError
 
 
 class Circle(Body):
-    def __init__(self, pos, rad, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
-                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
+    def __init__(self, pos, rad, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
+                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
-        self.rad = wrap_tensor(rad)
+        self._set_base_tensor(locals())
+        self.rad = get_tensor(rad, base_tensor=self._base_tensor)
         super().__init__(pos, vel=vel, mass=mass, restitution=restitution,
                          fric_coeff=fric_coeff, eps=eps, col=col, thickness=thickness)
 
@@ -111,7 +129,7 @@ class Circle(Body):
         self.geom = ode.GeomSphere(None, self.rad.item() + self.eps.item())
         self.geom.setPosition(torch.cat([self.pos,
                                          self.pos.new_zeros(1)]))
-        self.geom.no_collision = set()
+        self.geom.no_contact = set()
 
     def move(self, dt, update_geom_rotation=False):
         super().move(dt, update_geom_rotation=update_geom_rotation)
@@ -141,16 +159,18 @@ class Hull(Body):
        of hull is calculated and the vertices' representation is adjusted to the
        centroid's frame. Object position is set to centroid.
     """
-    def __init__(self, ref_point, vertices, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
-                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
+    def __init__(self, ref_point, vertices, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
+                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
+        self._set_base_tensor(locals())
+        ref_point = get_tensor(ref_point, base_tensor=self._base_tensor)
         # center vertices around centroid
-        verts = [wrap_tensor(v) for v in vertices]
+        verts = [get_tensor(v, base_tensor=self._base_tensor) for v in vertices]
         assert len(verts) > 2 and self._is_clockwise(verts)
         centroid = self._get_centroid(verts)
         self.verts = [v - centroid for v in verts]
         # center position at centroid
-        pos = wrap_tensor(ref_point) + centroid
+        pos = ref_point + centroid
         # store last separating edge for SAT
         self.last_sat_idx = 0
         super().__init__(pos, vel=vel, mass=mass, restitution=restitution,
@@ -177,9 +197,8 @@ class Hull(Body):
         self.geom = ode.GeomSphere(None, max_rad + self.eps.item())
         self.geom.setPosition(torch.cat([self.pos,
                                          self.pos.new_zeros(1)]))
-        self.geom.no_collision = set()
+        self.geom.no_contact = set()
 
-    # @profile
     def set_p(self, new_p, update_geom_rotation=False):
         rot = new_p[0] - self.p[0]
         if rot.item() != 0:
@@ -189,7 +208,6 @@ class Hull(Body):
     def move(self, dt, update_geom_rotation=False):
         super().move(dt, update_geom_rotation=update_geom_rotation)
 
-    # @profile
     def rotate_verts(self, rot):
         rot_mat = rotation_matrix(rot)
         for i in range(len(self.verts)):
@@ -233,11 +251,12 @@ class Hull(Body):
 
 
 class Rect(Hull):
-    def __init__(self, pos, dims, vel=(0, 0, 0), mass=1, restitution=Params.DEFAULT_RESTITUTION,
-                 fric_coeff=Params.DEFAULT_FRIC_COEFF, eps=Params.DEFAULT_EPSILON,
+    def __init__(self, pos, dims, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
+                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
                  col=(255, 0, 0), thickness=1):
-        self.dims = wrap_tensor(dims)
-        pos = wrap_tensor(pos)
+        self._set_base_tensor(locals())
+        self.dims = get_tensor(dims, base_tensor=self._base_tensor)
+        pos = get_tensor(pos, base_tensor=self._base_tensor)
         half_dims = self.dims / 2
         v0, v1 = half_dims, half_dims * half_dims.new_tensor([-1, 1])
         verts = [v0, v1, -v0, -v1]
@@ -254,7 +273,7 @@ class Rect(Hull):
         self.geom = ode.GeomBox(None, torch.cat([self.dims + 2 * self.eps.item(),
                                                  self.dims.new_ones(1)]))
         self.geom.setPosition(torch.cat([self.pos, self.pos.new_zeros(1)]))
-        self.geom.no_collision = set()
+        self.geom.no_contact = set()
 
     def rotate_verts(self, rot):
         rot_mat = rotation_matrix(rot)

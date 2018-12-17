@@ -5,11 +5,6 @@ Based on: M. B. Cline, Rigid body simulation with contact and constraints, 2002
 
 import torch
 
-from scipy.sparse.csc import csc_matrix
-from scipy.sparse.linalg.dsolve.linsolve import splu, spsolve
-import numpy as np
-
-from .utils import Params
 from lcp_physics.lcp.lcp import LCPFunction
 
 
@@ -27,6 +22,7 @@ class PdipmEngine(Engine):
         self.cached_inverse = None
         self.max_iter = max_iter
 
+    # @profile
     def solve_dynamics(self, world, dt):
         t = world.t
         Je = world.Je()
@@ -36,7 +32,7 @@ class PdipmEngine(Engine):
         u = torch.matmul(world.M(), world.get_v()) + dt * f
         if neq > 0:
             u = torch.cat([u, u.new_zeros(neq)])
-        if not world.collisions:
+        if not world.contacts:
             # No contact constraints, no complementarity conditions
             if neq > 0:
                 P = torch.cat([torch.cat([world.M(), -Je.t()], dim=1),
@@ -77,7 +73,7 @@ class PdipmEngine(Engine):
                 -E.transpose(1, 2)
             h = torch.cat([v, v.new_zeros(v.size(0), Jf.size(1) + mu.size(1))], 1)
 
-            x = -self.lcp_solver(max_iter=self.max_iter, verbose=-1)(M, u, G, h, Je, b, F)
+            x = -self.lcp_solver(max_iter=self.max_iter, verbose=100)(M, u, G, h, Je, b, F)
         new_v = x[:world.vec_len * len(world.bodies)].squeeze(0)
         return new_v
 
@@ -86,7 +82,7 @@ class PdipmEngine(Engine):
         M = world.M()
         Je = world.Je()
         Jc = None
-        if world.collisions:
+        if world.contacts:
             Jc = world.Jc()
         ge = torch.matmul(Je, v)
         gc = None

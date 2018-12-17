@@ -5,12 +5,12 @@ import math
 from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import TotalConstraint
 from lcp_physics.physics.forces import ExternalForce, down_force, hor_impulse, vert_impulse, rot_impulse
-from lcp_physics.physics.utils import Params, wrap_variable
+from lcp_physics.physics.utils import Defaults, wrap_variable
 from lcp_physics.physics.world import World, run_world
 
 
 TIME = 20
-DT = Params.DEFAULT_DT
+DT = Defaults.DEFAULT_DT
 
 
 class TestHull(unittest.TestCase):

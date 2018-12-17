@@ -18,6 +18,7 @@ class LCPFunction(Function):
         self.max_iter = max_iter
         self.Q_LU = self.S_LU = self.R = None
 
+    # @profile
     def forward(self, Q, p, G, h, A, b, F):
         _, nineq, nz = G.size()
         neq = A.size(1) if A.ndimension() > 1 else 0
