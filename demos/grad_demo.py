@@ -10,10 +10,10 @@ from lcp_physics.physics.bodies import Circle, Rect
 from lcp_physics.physics.constraints import Joint
 from lcp_physics.physics.forces import ExternalForce, down_force
 from lcp_physics.physics.world import World, run_world
-from lcp_physics.physics.utils import Recorder, plot, Params
+from lcp_physics.physics.utils import Recorder, plot, Defaults
 
 TIME = 7
-DT = Params.DEFAULT_DT
+DT = Defaults.DT
 
 
 def grad_demo(screen):
@@ -93,12 +93,12 @@ def make_world(learned_force):
     c1 = Circle([250, 210], 30)
     bodies.append(c1)
     c1.add_force(ExternalForce(learned_force))
-    c1.add_no_collision(target)
+    c1.add_no_contact(target)
 
     c2 = Circle([400, 250], 30)
     bodies.append(c2)
     # joints.append(Joint(c2, None, [500, 275]))
-    c2.add_no_collision(target)
+    c2.add_no_contact(target)
 
     world = World(bodies, joints, dt=DT)
     return world, c2, target

@@ -6,12 +6,12 @@ import pygame
 from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import TotalConstraint, FixedJoint
 from lcp_physics.physics.forces import ExternalForce, Gravity, vert_impulse, hor_impulse
-from lcp_physics.physics.utils import Params, Recorder
+from lcp_physics.physics.utils import Defaults, Recorder
 from lcp_physics.physics.world import World, run_world
 
 
 TIME = 20
-DT = Params.DEFAULT_DT
+DT = Defaults.DT
 
 
 def fixed_joint_demo(screen):
@@ -28,7 +28,7 @@ def fixed_joint_demo(screen):
               restitution=restitution, fric_coeff=fric_coeff)
     bodies.append(r2)
     joints += [FixedJoint(r, r2)]
-    r2.add_no_collision(r)
+    r2.add_no_contact(r)
     r2.add_force(Gravity(g=100))
 
     inclination = math.pi / 32

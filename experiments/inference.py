@@ -5,74 +5,75 @@ import pygame
 
 import torch
 from torch.nn import MSELoss
-from torch.autograd import Variable
 
-from lcp_physics.physics.world import World
+from lcp_physics.physics.world import World, run_world
 from lcp_physics.physics.bodies import Circle, Rect
 from lcp_physics.physics.forces import ExternalForce, Gravity, vert_impulse, hor_impulse, rot_impulse
 from lcp_physics.physics.constraints import Joint
-from lcp_physics.physics.utils import Recorder, plot, Params
+from lcp_physics.physics.utils import Recorder, plot, Defaults
+
 
 TIME = 40
+DT = Defaults.DT
 MASS_EPS = 1e-7
-DT = Params.DEFAULT_DT
+TOTAL_MASS = 7
 NUM_LINKS = 10
 
 
 def inference_demo(screen):
     forces = [hor_impulse]
-    ground_truth_mass = Variable(torch.DoubleTensor([7]))
-    world, c = make_world(forces, ground_truth_mass, num_links=NUM_LINKS)
+    ground_truth_mass = torch.DoubleTensor([TOTAL_MASS])
+    world, chain = make_world(forces, ground_truth_mass, num_links=NUM_LINKS)
 
     rec = None
     # rec = Recorder(DT, screen)
     ground_truth_pos = positions_run_world(world, run_time=10, screen=screen, recorder=rec)
     ground_truth_pos = [p.data for p in ground_truth_pos]
-    ground_truth_pos = Variable(torch.cat(ground_truth_pos))
+    ground_truth_pos = torch.cat(ground_truth_pos)
 
-    learning_rate = 0.01
+    learning_rate = 0.5
     max_iter = 100
 
-    next_mass = Variable(torch.DoubleTensor([1.3]), requires_grad=True)
+    next_mass = torch.rand(1, dtype=torch.double, requires_grad=True)
+    print('Initial mass:', next_mass)
+
+    optim = torch.optim.RMSprop([next_mass], lr=learning_rate)
     loss_hist = []
     mass_hist = [next_mass]
-    last_dist = 1e10
+    last_loss = 1e10
     for i in range(max_iter):
-        world, c = make_world(forces, next_mass, num_links=NUM_LINKS)
-        # world.load_state(initial_state)
-        # world.reset_engine()
+        if i % 1 == 0:
+            world, chain = make_world(forces, next_mass.clone().detach(), num_links=NUM_LINKS)
+            run_world(world, run_time=10, print_time=False, screen=screen, recorder=None)
+
+        world, chain = make_world(forces, next_mass, num_links=NUM_LINKS)
         positions = positions_run_world(world, run_time=10, screen=None)
         positions = torch.cat(positions)
         positions = positions[:len(ground_truth_pos)]
-        # temp_ground_truth_pos = ground_truth_pos[:len(positions)]
+        temp_ground_truth_pos = ground_truth_pos[:len(positions)]
 
-        loss = MSELoss()(positions, ground_truth_pos)
+        optim.zero_grad()
+        loss = MSELoss()(positions, temp_ground_truth_pos)
         loss.backward()
-        grad = c.mass.grad.data
-        # clip gradient
-        grad = torch.max(torch.min(grad, torch.DoubleTensor([100])), torch.DoubleTensor([-100]))
-        temp = c.mass.data - learning_rate * grad
-        temp = max(MASS_EPS, temp[0])
-        next_mass = Variable(torch.DoubleTensor([temp]), requires_grad=True)
-        # learning_rate /= 1.1
-        print(i, '/', max_iter, loss.data[0])
-        print(grad)
-        print(next_mass)
-        # print(learned_force(0.05))
-        if abs((last_dist - loss).data[0]) < 1e-3:
+
+        optim.step()
+
+        print('Iteration: {} / {}'.format(i, max_iter))
+        print('Loss:', loss.item())
+        print('Gradient:', next_mass.grad.item())
+        print('Next mass:', next_mass.item())
+        print('-----')
+        if abs((last_loss - loss).item()) < 1e-4:
             break
-        last_dist = loss
+        last_loss = loss
         loss_hist.append(loss)
         mass_hist.append(next_mass)
 
     world = make_world(forces, next_mass, num_links=NUM_LINKS)[0]
-    # world.load_state(initial_state)
-    # world.reset_engine()
     rec = None
-    # rec = Recorder(DT, screen)
     positions_run_world(world, run_time=10, screen=screen, recorder=rec)
     loss = MSELoss()(positions, ground_truth_pos)
-    print(loss.data[0])
+    print(loss.item())
     print(next_mass)
 
     plot(loss_hist)
@@ -89,26 +90,26 @@ def make_world(forces, mass, num_links=10):
     joints.append(Joint(r, None, [300, 30]))
     for i in range(1, num_links):
         if i < num_links - 1:
-            r = Rect([300, 50 + 50 * i], [20, 60])
+            r = Rect([300, 50 + 50 * i], [20, 60], mass=mass / num_links)
         else:
-            r = Rect([300, 50 + 50 * i], [20, 60], mass=mass)
+            r = Rect([300, 50 + 50 * i], [20, 60], mass=mass / num_links)
+        r.add_force(Gravity(g=100))
         bodies.append(r)
         joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
-        bodies[-1].add_no_collision(bodies[-2])
-    bodies[-1].add_force(Gravity(g=100))
+        bodies[-1].add_no_contact(bodies[-2])
 
     # make projectile
-    m = 13
-    c1 = Circle([50, bodies[-1].pos.data[1]], 20)  # same Y as last chain link
+    m = 3
+    c1 = Circle([50, bodies[-1].pos.data[1]], 20, restitution=1.)  # same Y as last chain link
     bodies.append(c1)
     for f in forces:
-        c1.add_force(ExternalForce(f, multiplier=100 * m))
+        c1.add_force(ExternalForce(f, multiplier=500 * m))
 
-    world = World(bodies, joints, dt=DT)
+    world = World(bodies, joints, dt=DT, post_stab=True)
     return world, r
 
 
-def positions_run_world(world, dt=Params.DEFAULT_DT, run_time=10,
+def positions_run_world(world, dt=Defaults.DT, run_time=10,
                         screen=None, recorder=None):
     positions = [torch.cat([b.p for b in world.bodies])]
 
@@ -141,19 +142,6 @@ def positions_run_world(world, dt=Params.DEFAULT_DT, run_time=10,
                 for joint in world.joints:
                     update_list += joint[0].draw(screen)
 
-                # # XXX visualize collision points and normal for debug
-                # if world.collisions_debug:
-                #     for c in world.collisions_debug:
-                #         (normal, p1, p2, penetration), b1, b2 = c
-                #         b1_pos = world.bodies[b1].pos
-                #         b2_pos = world.bodies[b2].pos
-                #         p1 = p1 + b1_pos
-                #         p2 = p2 + b2_pos
-                #         pygame.draw.circle(screen, (0, 255, 0), p1.data.numpy().astype(int), 5)
-                #         pygame.draw.circle(screen, (0, 0, 255), p2.data.numpy().astype(int), 5)
-                #         pygame.draw.line(screen, (0, 255, 0), p1.data.numpy().astype(int),
-                #                          (p1.data.numpy() + normal.data.numpy() * 100).astype(int), 3)
-
                 if not recorder:
                     # Don't refresh screen if recording
                     pygame.display.update(update_list)
@@ -175,6 +163,5 @@ if __name__ == '__main__':
         screen = pygame.display.set_mode((width, height), pygame.DOUBLEBUF)
         screen.set_alpha(None)
         pygame.display.set_caption('2D Engine')
-    screen = None
 
     inference_demo(screen)

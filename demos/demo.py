@@ -6,11 +6,11 @@ import pygame
 from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import Joint, YConstraint, XConstraint, RotConstraint, TotalConstraint
 from lcp_physics.physics.forces import ExternalForce, Gravity, vert_impulse, hor_impulse
-from lcp_physics.physics.utils import Params, Recorder
+from lcp_physics.physics.utils import Defaults, Recorder
 from lcp_physics.physics.world import World, run_world
 
 TIME = 20
-DT = Params.DEFAULT_DT
+DT = Defaults.DT
 
 
 def debug_demo(screen):
@@ -73,7 +73,7 @@ def chain_demo(screen):
         r = Rect([300, 50 + 50 * i], [20, 60], restitution=restitution)
         bodies.append(r)
         joints.append(Joint(bodies[-1], bodies[-2], [300, 25 + 50 * i]))
-        bodies[-1].add_no_collision(bodies[-2])
+        bodies[-1].add_no_contact(bodies[-2])
         bodies[-1].add_force(Gravity(g=100))
 
     # make projectile
@@ -93,7 +93,7 @@ def chain_demo(screen):
 def slide_demo(screen):
     bodies = []
     joints = []
-    restitution = Params.DEFAULT_RESTITUTION
+    restitution = Defaults.RESTITUTION
     fric_coeff = 0.15
 
     inclination = math.pi / 32
