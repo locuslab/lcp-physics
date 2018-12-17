@@ -7,33 +7,33 @@ import torch
 
 
 class Defaults:
-    """Aggregates general simulation parameters and defaults.
+    """Aggregates general simulation parameters defaults.
     """
     # Dimensions
     DIM = 2
 
     # Contact detectopm parameter
-    DEFAULT_EPSILON = 0.1
+    EPSILON = 0.1
 
     # Penetration tolerance parameter
-    DEFAULT_TOL = 1e-6
+    TOL = 1e-6
 
     # Default simulation parameters
-    DEFAULT_RESTITUTION = 0.5
+    RESTITUTION = 0.5
 
-    DEFAULT_FRIC_COEFF = 0.9
-    DEFAULT_FRIC_DIRS = 2
+    FRIC_COEFF = 0.9
+    FRIC_DIRS = 2
 
-    DEFAULT_FPS = 30
-    DEFAULT_DT = 1.0 / DEFAULT_FPS
+    FPS = 30
+    DT = 1.0 / FPS
 
-    DEFAULT_ENGINE = 'PdipmEngine'
-    DEFAULT_CONTACT = 'DiffContactHandler'
+    ENGINE = 'PdipmEngine'
+    CONTACT = 'DiffContactHandler'
 
     # Tensor defaults
-    DEFAULT_DTYPE = torch.float64
-    DEFAULT_DEVICE = torch.device('cpu')
-    DEFAULT_LAYOUT = torch.strided
+    DTYPE = torch.float64
+    DEVICE = torch.device('cpu')
+    LAYOUT = torch.strided
 
     # Post stabilization flag
     POST_STABILIZATION = False
@@ -121,8 +121,8 @@ def get_tensor(x, base_tensor=None):
         return base_tensor.new_tensor(x)
     else:
         return torch.tensor(x,
-                            dtype=Defaults.DEFAULT_DTYPE,
-                            device=Defaults.DEFAULT_DEVICE,
+                            dtype=Defaults.DTYPE,
+                            device=Defaults.DEVICE,
                             # layout=Params.DEFAULT_LAYOUT,
                             )
 

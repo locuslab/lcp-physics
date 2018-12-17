@@ -10,7 +10,7 @@ from lcp_physics.physics.world import World, run_world
 
 
 TIME = 20
-DT = Defaults.DEFAULT_DT
+DT = Defaults.DT
 
 
 class TestHull(unittest.TestCase):

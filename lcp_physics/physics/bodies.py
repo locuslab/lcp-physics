@@ -15,8 +15,8 @@ DIM = Defaults.DIM
 class Body(object):
     """Base class for bodies.
     """
-    def __init__(self, pos, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
-                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
+    def __init__(self, pos, vel=(0, 0, 0), mass=1, restitution=Defaults.RESTITUTION,
+                 fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
         # get base tensor to define dtype, device and layout for others
         self._set_base_tensor(locals())
@@ -114,8 +114,8 @@ class Body(object):
 
 
 class Circle(Body):
-    def __init__(self, pos, rad, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
-                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
+    def __init__(self, pos, rad, vel=(0, 0, 0), mass=1, restitution=Defaults.RESTITUTION,
+                 fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
         self._set_base_tensor(locals())
         self.rad = get_tensor(rad, base_tensor=self._base_tensor)
@@ -159,8 +159,8 @@ class Hull(Body):
        of hull is calculated and the vertices' representation is adjusted to the
        centroid's frame. Object position is set to centroid.
     """
-    def __init__(self, ref_point, vertices, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
-                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
+    def __init__(self, ref_point, vertices, vel=(0, 0, 0), mass=1, restitution=Defaults.RESTITUTION,
+                 fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
         self._set_base_tensor(locals())
         ref_point = get_tensor(ref_point, base_tensor=self._base_tensor)
@@ -251,8 +251,8 @@ class Hull(Body):
 
 
 class Rect(Hull):
-    def __init__(self, pos, dims, vel=(0, 0, 0), mass=1, restitution=Defaults.DEFAULT_RESTITUTION,
-                 fric_coeff=Defaults.DEFAULT_FRIC_COEFF, eps=Defaults.DEFAULT_EPSILON,
+    def __init__(self, pos, dims, vel=(0, 0, 0), mass=1, restitution=Defaults.RESTITUTION,
+                 fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
         self._set_base_tensor(locals())
         self.dims = get_tensor(dims, base_tensor=self._base_tensor)

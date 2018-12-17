@@ -16,9 +16,9 @@ DIM = Defaults.DIM
 class World:
     """A physics simulation world, with bodies and constraints.
     """
-    def __init__(self, bodies, constraints=[], dt=Defaults.DEFAULT_DT, engine=Defaults.DEFAULT_ENGINE,
-                 contact_callback=Defaults.DEFAULT_CONTACT, eps=Defaults.DEFAULT_EPSILON,
-                 tol=Defaults.DEFAULT_TOL, fric_dirs=Defaults.DEFAULT_FRIC_DIRS,
+    def __init__(self, bodies, constraints=[], dt=Defaults.DT, engine=Defaults.ENGINE,
+                 contact_callback=Defaults.CONTACT, eps=Defaults.EPSILON,
+                 tol=Defaults.TOL, fric_dirs=Defaults.FRIC_DIRS,
                  post_stab=Defaults.POST_STABILIZATION, strict_no_penetration=True):
         # self.contacts_debug = None  # XXX
 

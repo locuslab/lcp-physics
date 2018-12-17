@@ -12,7 +12,7 @@ from lcp_physics.physics.world import World, run_world
 
 
 TIME = 20
-DT = Defaults.DEFAULT_DT
+DT = Defaults.DT
 
 
 class TestDemos(unittest.TestCase):
@@ -280,7 +280,7 @@ class TestDemos(unittest.TestCase):
             world = World(bodies, joints, dt=DT)
             return world, r
 
-        def positions_run_world(world, dt=Defaults.DEFAULT_DT, run_time=10,
+        def positions_run_world(world, dt=Defaults.DT, run_time=10,
                                 screen=None, recorder=None):
             positions = [torch.cat([b.p for b in world.bodies])]
 

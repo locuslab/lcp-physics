@@ -7,7 +7,7 @@ from lcp_physics.physics.forces import Gravity
 from lcp_physics.physics.utils import Defaults
 
 
-DTYPE = Defaults.DEFAULT_DTYPE
+DTYPE = Defaults.DTYPE
 
 
 class TestBodies(unittest.TestCase):
