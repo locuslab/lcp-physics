@@ -16,6 +16,7 @@ from lcp_physics.physics.utils import Recorder, plot, Defaults
 TIME = 40
 DT = Defaults.DT
 DTYPE = Defaults.DTYPE
+
 STOP_DIFF = 1e-3
 MASS_EPS = 1e-7
 TOTAL_MASS = 7

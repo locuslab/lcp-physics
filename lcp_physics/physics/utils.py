@@ -31,7 +31,7 @@ class Defaults:
     CONTACT = 'DiffContactHandler'
 
     # Tensor defaults
-    DTYPE = torch.float64
+    DTYPE = torch.double
     DEVICE = torch.device('cpu')
     LAYOUT = torch.strided
 

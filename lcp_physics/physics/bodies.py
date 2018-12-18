@@ -96,8 +96,10 @@ class Body(object):
             self.geom.setQuaternion(quat)
 
     def apply_forces(self, t):
-        return self.v.new_zeros(len(self.v)) \
-               + sum([f.force(t) for f in self.forces])
+        if len(self.forces) == 0:
+            return self.v.new_zeros(len(self.v))
+        else:
+            return sum([f.force(t) for f in self.forces])
 
     def add_no_contact(self, other):
         self.geom.no_contact.add(other.geom)
