@@ -5,7 +5,7 @@ import math
 from lcp_physics.physics.bodies import Circle, Rect, Hull
 from lcp_physics.physics.constraints import TotalConstraint
 from lcp_physics.physics.forces import ExternalForce, down_force, hor_impulse, vert_impulse, rot_impulse
-from lcp_physics.physics.utils import Defaults, wrap_variable
+from lcp_physics.physics.utils import Defaults, get_tensor
 from lcp_physics.physics.world import World, run_world
 
 
@@ -17,13 +17,14 @@ class TestHull(unittest.TestCase):
     def setUp(self):
         # Run without displaying
         self.screen = None
+
         # Run with display
-        import pygame
-        pygame.init()
-        width, height = 1000, 600
-        self.screen = pygame.display.set_mode((width, height), pygame.DOUBLEBUF)
-        pygame.display.set_caption('2D Engine')
-        self.screen.set_alpha(None)
+        # import pygame
+        # pygame.init()
+        # width, height = 1000, 600
+        # self.screen = pygame.display.set_mode((width, height), pygame.DOUBLEBUF)
+        # pygame.display.set_caption('2D Engine')
+        # self.screen.set_alpha(None)
 
     def testAngInertia(self):
         r = Rect([300, 300], [20, 20])
@@ -33,13 +34,13 @@ class TestHull(unittest.TestCase):
 
         # print(p.pos)
         # print(p.verts)
-        # print(p.ang_inertia.data[0], r.ang_inertia.data[0])
-        assert p.ang_inertia.data[0] - r.ang_inertia.data[0] < 1e-12
+        # print(p.ang_inertia.item(), r.ang_inertia.item())
+        assert p.ang_inertia.item() - r.ang_inertia.item() < 1e-12
 
     def testCentroid(self):
         p = Hull([700, 300], [[math.sqrt(2) * 10 + 10, 0 + 10], [0 + 10, math.sqrt(2) * 10 + 10],
                               [math.sqrt(2)*-10+10, 0+10], [0+10, math.sqrt(2)*-10+10]])
-        assert p.pos[0].data[0] - 700 == 10 and p.pos[1].data[0] - 300 == 10
+        assert p.pos[0].item() - 700 == 10 and p.pos[1].item() - 300 == 10
 
     def testRender(self):
         p1 = Hull([700, 200], [[math.sqrt(2) * 10 + 10, 0 + 10], [0 + 10, math.sqrt(2) * 10 + 10],
@@ -73,7 +74,7 @@ class TestHull(unittest.TestCase):
 
         p1 = Hull([500, 300], [[450, 5], [-450, 5], [-450, -5], [450, -5]],
                   restitution=restitution, fric_coeff=fric_coeff)
-        p1.rotate_verts(wrap_variable(math.pi / 32))
+        p1.rotate_verts(get_tensor(math.pi / 32))
         bodies.append(p1)
         joints.append(TotalConstraint(p1))
 
