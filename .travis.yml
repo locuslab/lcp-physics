@@ -4,7 +4,7 @@ python:
 install:
   - pip install pygame
   # Install pytorch
-  - pip install http://download.pytorch.org/whl/cu80/torch-0.3.0.post4-cp35-cp35m-linux_x86_64.whl > /dev/null
+  - pip install https://download.pytorch.org/whl/cpu/torch-1.0.0-cp35-cp35m-linux_x86_64.whl > /dev/null
   # Install scipy
   - pip install scipy
   - pip install . 
