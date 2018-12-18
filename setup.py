@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='lcp_physics',
-    version='0.0.6',
+    version='0.1.0',
     description='A differentiable LCP physics engine in PyTorch.',
     author='Filipe de Avila Belbute-Peres',
     author_email='filiped@cs.cmu.edu',
