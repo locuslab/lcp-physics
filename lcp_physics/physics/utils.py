@@ -132,8 +132,8 @@ def plot(y_axis, x_axis=None):
     if x_axis is None:
         x_axis = range(len(y_axis))
     else:
-        x_axis = [x.item() if x.__class__ is torch.Tensor else x[0] for x in x_axis]
-    y_axis = [y.item() if y.__class__ is torch.Tensor else y[0] for y in y_axis]
+        x_axis = [x.item() if x.__class__ is torch.Tensor else x for x in x_axis]
+    y_axis = [y.item() if y.__class__ is torch.Tensor else y for y in y_axis]
     plt.plot(x_axis, y_axis)
     plt.show()
 

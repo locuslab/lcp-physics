@@ -19,7 +19,7 @@ class Body(object):
                  fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
         # get base tensor to define dtype, device and layout for others
-        self._set_base_tensor(locals())
+        self._set_base_tensor(locals().values())
         self.eps = get_tensor(eps, base_tensor=self._base_tensor)
 
         # rotation & position vectors
@@ -105,9 +105,7 @@ class Body(object):
 
     def add_force(self, f):
         self.forces.append(f)
-        f.body = self
-        # match body's tensor type and device
-        f.multiplier = get_tensor(f.multiplier, base_tensor=self._base_tensor)
+        f.set_body(self)
 
     def draw(self, screen, pixels_per_meter=1):
         raise NotImplementedError
@@ -117,7 +115,7 @@ class Circle(Body):
     def __init__(self, pos, rad, vel=(0, 0, 0), mass=1, restitution=Defaults.RESTITUTION,
                  fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
-        self._set_base_tensor(locals())
+        self._set_base_tensor(locals().values())
         self.rad = get_tensor(rad, base_tensor=self._base_tensor)
         super().__init__(pos, vel=vel, mass=mass, restitution=restitution,
                          fric_coeff=fric_coeff, eps=eps, col=col, thickness=thickness)
@@ -162,7 +160,7 @@ class Hull(Body):
     def __init__(self, ref_point, vertices, vel=(0, 0, 0), mass=1, restitution=Defaults.RESTITUTION,
                  fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
-        self._set_base_tensor(locals())
+        self._set_base_tensor(locals().values())
         ref_point = get_tensor(ref_point, base_tensor=self._base_tensor)
         # center vertices around centroid
         verts = [get_tensor(v, base_tensor=self._base_tensor) for v in vertices]
@@ -254,7 +252,7 @@ class Rect(Hull):
     def __init__(self, pos, dims, vel=(0, 0, 0), mass=1, restitution=Defaults.RESTITUTION,
                  fric_coeff=Defaults.FRIC_COEFF, eps=Defaults.EPSILON,
                  col=(255, 0, 0), thickness=1):
-        self._set_base_tensor(locals())
+        self._set_base_tensor(locals().values())
         self.dims = get_tensor(dims, base_tensor=self._base_tensor)
         pos = get_tensor(pos, base_tensor=self._base_tensor)
         half_dims = self.dims / 2

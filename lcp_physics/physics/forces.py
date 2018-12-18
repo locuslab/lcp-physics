@@ -42,14 +42,26 @@ class ExternalForce:
         self.force = lambda t: force_func(t) * self.multiplier
         self.body = None
 
+    def set_body(self, body):
+        self.body = body
+        # match body's tensor type and device
+        self.multiplier = get_tensor(self.multiplier, base_tensor=body._base_tensor)
+
 
 class Gravity(ExternalForce):
     """Gravity force object, constantly returns a downwards pointing force of
        magnitude body.mass * g.
     """
+
     def __init__(self, g=10.0):
         self.multiplier = g
         self.body = None
+        self.cached_force = None
 
     def force(self, t):
-        return ExternalForce.DOWN * self.body.mass * self.multiplier
+        return self.cached_force
+
+    def set_body(self, body):
+        super().set_body(body)
+        down_tensor = ExternalForce.DOWN.type_as(body._base_tensor).to(body._base_tensor)
+        self.cached_force = down_tensor * self.body.mass * self.multiplier
