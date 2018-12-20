@@ -112,18 +112,19 @@ def rotation_matrix(ang):
     return rot_mat
 
 
-def get_tensor(x, base_tensor=None):
+def get_tensor(x, base_tensor=None, **kwargs):
     """Wrap array or scalar in torch Tensor, if not already.
     """
     if isinstance(x, torch.Tensor):
         return x
     elif base_tensor is not None:
-        return base_tensor.new_tensor(x)
+        return base_tensor.new_tensor(x, **kwargs)
     else:
         return torch.tensor(x,
                             dtype=Defaults.DTYPE,
                             device=Defaults.DEVICE,
                             # layout=Params.DEFAULT_LAYOUT,
+                            **kwargs,
                             )
 
 

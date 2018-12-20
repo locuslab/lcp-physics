@@ -158,7 +158,7 @@ class RotConstraint:
         self.body2 = self.rot2 = None
 
     def J(self):
-        J = self.pos.tensor([1, 0, 0]).unsqueeze(0)
+        J = self.pos.new_tensor([1, 0, 0]).unsqueeze(0)
         return J, None
 
     def move(self, dt):

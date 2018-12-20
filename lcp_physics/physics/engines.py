@@ -73,7 +73,7 @@ class PdipmEngine(Engine):
                 -E.transpose(1, 2)
             h = torch.cat([v, v.new_zeros(v.size(0), Jf.size(1) + mu.size(1))], 1)
 
-            x = -self.lcp_solver(max_iter=self.max_iter, verbose=100)(M, u, G, h, Je, b, F)
+            x = -self.lcp_solver(max_iter=self.max_iter, verbose=-1)(M, u, G, h, Je, b, F)
         new_v = x[:world.vec_len * len(world.bodies)].squeeze(0)
         return new_v
 

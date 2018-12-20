@@ -35,8 +35,7 @@ lcp warning: Returning an inaccurate and potentially incorrect solution.
 Some residual is large.
 Your problem may be infeasible or difficult.
 
-You can try using the CVXPY solver to see if your problem is feasible
-and you can use the verbose option to check the convergence status of
+You can try using the verbose option to check the convergence status of
 our solver while increasing the number of iterations.
 
 Advanced users:
@@ -101,13 +100,13 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
     # Make all of the slack variables >= 1.
     M = torch.min(s, 1)[0]
     M = M.view(M.size(0), 1).repeat(1, nineq)
-    I = M < 0
+    I = M <= 0
     s[I] -= M[I] - 1
 
     # Make all of the inequality dual variables >= 1.
     M = torch.min(z, 1)[0]
     M = M.view(M.size(0), 1).repeat(1, nineq)
-    I = M < 0
+    I = M <= 0
     z[I] -= M[I] - 1
 
     best = {'resids': None, 'x': None, 'z': None, 's': None, 'y': None}
