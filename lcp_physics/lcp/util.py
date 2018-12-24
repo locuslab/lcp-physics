@@ -26,7 +26,12 @@ def get_sizes(G, A=None):
     elif G.dim() == 3:
         nBatch, nineq, nz = G.size()
     if A is not None:
-        neq = A.size(1) if A.ndimension() > 1 else 0
+        if A.ndimension() <= 1:
+            neq = 0
+        elif A.dim() == 2:
+            neq = A.size(0)
+        elif A.dim() == 3:
+            neq = A.size(1)
     else:
         neq = None
     # nBatch = batchedTensor.size(0) if batchedTensor is not None else None

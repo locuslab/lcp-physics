@@ -45,57 +45,22 @@ https://github.com/locuslab/qpth/issues/6
 """
 
 
-class KKTSolvers(Enum):
-    LU_FULL = 1
-    LU_PARTIAL = 2
-    IR_UNOPT = 3
-
-
 # @profile
 def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
             eps=1e-12, verbose=-1, not_improved_lim=3,
-            max_iter=20, solver=KKTSolvers.LU_PARTIAL):
+            max_iter=20):
     """
     Q_LU, S_LU, R = pre_factor_kkt(Q, G, A)
     """
     nineq, nz, neq, batch_size = get_sizes(G, A)
 
     # Find initial values
-    if solver == KKTSolvers.LU_FULL:
-        D = torch.eye(nineq).repeat(batch_size, 1, 1).type_as(Q)
-        reg_eps = 1e-7
-        Q_tilde = Q + reg_eps * torch.eye(nz).type_as(Q).repeat(batch_size, 1, 1)
-        D_tilde = D + reg_eps * torch.eye(nineq).type_as(Q).repeat(batch_size, 1, 1)
-
-        if neq > 0:
-            A_ = torch.cat([torch.cat([G, torch.eye(nineq).type_as(Q_tilde).repeat(batch_size, 1, 1)], 2),
-                            torch.cat([A, Q_tilde.new_zeros(batch_size, neq, nineq)], 2)], 1)
-        else:
-            A_ = torch.cat([G, torch.eye(nineq).type_as(Q_tilde).unsqueeze(0)], 2)
-
-        C_tilde = reg_eps * torch.eye(neq + nineq).type_as(Q_tilde).repeat(batch_size, 1, 1)
-        if F is not None:
-            C_tilde[:, :nineq, :nineq] += F
-        ns = [nineq, nz, neq, batch_size]
-        x, s, z, y = factor_solve_kkt(
-            Q_tilde, D_tilde, A_, C_tilde, p,
-            torch.zeros(batch_size, nineq).type_as(Q),
-            -h, -b if b is not None else None, ns)
-    elif solver == KKTSolvers.LU_PARTIAL:
-        d = Q.new_ones(batch_size, nineq)
-        factor_kkt(S_LU, R, d)
-        x, s, z, y = solve_kkt(
-            Q_LU, d, G, A, S_LU,
-            p, Q.new_zeros(batch_size, nineq),
-            -h, -b if neq > 0 else None)
-    elif solver == KKTSolvers.IR_UNOPT:
-        D = torch.eye(nineq).repeat(batch_size, 1, 1).type_as(Q)
-        x, s, z, y = solve_kkt_ir(
-            Q, D, G, A, F, p,
-            torch.zeros(batch_size, nineq).type_as(Q),
-            -h, -b if b is not None else None)
-    else:
-        raise NotImplementedError('Specified KKTSolver not implemented.')
+    d = Q.new_ones(batch_size, nineq)
+    factor_kkt(S_LU, R, d)
+    x, s, z, y = solve_kkt(
+        Q_LU, d, G, A, S_LU,
+        p, Q.new_zeros(batch_size, nineq),
+        -h, -b if neq > 0 else None)
 
     # Make all of the slack variables >= 1.
     M = torch.min(s, 1)[0]
@@ -119,9 +84,8 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
             torch.bmm(x.unsqueeze(1), Q.transpose(1, 2)).squeeze(1) + \
             p
         rs = z
-        rz = torch.bmm(x.unsqueeze(1), G.transpose(1, 2)).squeeze(1) + s - h
-        if F is not None:  # XXX (Inverted sign for F below)
-            rz -= torch.bmm(z.unsqueeze(1), F.transpose(1, 2)).squeeze(1)
+        rz = torch.bmm(x.unsqueeze(1), G.transpose(1, 2)).squeeze(1) + s - h \
+            - torch.bmm(z.unsqueeze(1), F.transpose(1, 2)).squeeze(1)
         ry = torch.bmm(x.unsqueeze(1), A.transpose(
             1, 2)).squeeze(1) - b if neq > 0 else 0.0
         mu = torch.abs((s * z).sum(1).squeeze() / nineq)
@@ -132,13 +96,12 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
         resids = pri_resid + dual_resid + nineq * mu
 
         d = z / s
-        if solver == KKTSolvers.LU_PARTIAL:
-            try:
-                factor_kkt(S_LU, R, d)
-            except:
-                return best['x'], best['y'], best['z'], best['s']
+        try:
+            factor_kkt(S_LU, R, d)
+        except:
+            return best['x'], best['y'], best['z'], best['s']
 
-        if verbose == 1:
+        if verbose > 0:
             print('iter: {}, pri_resid: {:.5e}, dual_resid: {:.5e}, mu: {:.5e}'.format(
                 i, pri_resid.mean(), dual_resid.mean(), mu.mean()))
         if best['resids'] is None:
@@ -172,20 +135,8 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
                 print(INACC_ERR)
             return best['x'], best['y'], best['z'], best['s']
 
-        if solver == KKTSolvers.LU_FULL:
-            D = bdiag(d)
-            D_tilde = D + reg_eps * torch.eye(nineq).type_as(Q).repeat(batch_size, 1, 1)
-            dx_aff, ds_aff, dz_aff, dy_aff = factor_solve_kkt(
-                Q_tilde, D_tilde, A_, C_tilde, rx, rs, rz, ry, ns)
-        elif solver == KKTSolvers.LU_PARTIAL:
-            dx_aff, ds_aff, dz_aff, dy_aff = solve_kkt(
-                Q_LU, d, G, A, S_LU, rx, rs, rz, ry)
-        elif solver == KKTSolvers.IR_UNOPT:
-            D = bdiag(d)
-            dx_aff, ds_aff, dz_aff, dy_aff = solve_kkt_ir(
-                Q, D, G, A, F, rx, rs, rz, ry)
-        else:
-            raise NotImplementedError('Specified KKTSolver not implemented.')
+        dx_aff, ds_aff, dz_aff, dy_aff = solve_kkt(
+            Q_LU, d, G, A, S_LU, rx, rs, rz, ry)
 
         # compute centering directions
         alpha = torch.min(torch.min(get_step(z, dz_aff),
@@ -203,20 +154,8 @@ def forward(Q, p, G, h, A, b, F, Q_LU, S_LU, R,
         rz = Q.new_zeros(batch_size, nineq)
         ry = Q.new_zeros(batch_size, neq)
 
-        if solver == KKTSolvers.LU_FULL:
-            D = bdiag(d)
-            D_tilde = D + reg_eps * torch.eye(nineq).type_as(Q).repeat(batch_size, 1, 1)
-            dx_cor, ds_cor, dz_cor, dy_cor = factor_solve_kkt(
-                Q_tilde, D_tilde, A_, C_tilde, rx, rs, rz, ry, ns)
-        elif solver == KKTSolvers.LU_PARTIAL:
-            dx_cor, ds_cor, dz_cor, dy_cor = solve_kkt(
-                Q_LU, d, G, A, S_LU, rx, rs, rz, ry)
-        elif solver == KKTSolvers.IR_UNOPT:
-            D = bdiag(d)
-            dx_cor, ds_cor, dz_cor, dy_cor = solve_kkt_ir(
-                Q, D, G, A, F, rx, rs, rz, ry)
-        else:
-            raise NotImplementedError('Specified KKTSolver not implemented.')
+        dx_cor, ds_cor, dz_cor, dy_cor = solve_kkt(
+            Q_LU, d, G, A, S_LU, rx, rs, rz, ry)
 
         dx = dx_aff + dx_cor
         ds = ds_aff + ds_cor

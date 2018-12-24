@@ -28,8 +28,8 @@ class LCPFunction(Function):
         self.Q_LU, self.S_LU, self.R = pdipm.pre_factor_kkt(Q, G, F, A)
         zhats, self.nus, self.lams, self.slacks = pdipm.forward(
             Q, p, G, h, A, b, F, self.Q_LU, self.S_LU, self.R,
-            self.eps, self.verbose, self.not_improved_lim,
-            self.max_iter, solver=pdipm.KKTSolvers.LU_PARTIAL)
+            eps=self.eps, max_iter=self.max_iter, verbose=self.verbose,
+            not_improved_lim=self.not_improved_lim)
 
         self.save_for_backward(zhats, Q, p, G, h, A, b, F)
         return zhats

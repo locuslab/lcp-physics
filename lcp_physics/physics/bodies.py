@@ -20,8 +20,8 @@ class Body(object):
                  col=(255, 0, 0), thickness=1):
         # get base tensor to define dtype, device and layout for others
         self._set_base_tensor(locals().values())
-        self.eps = get_tensor(eps, base_tensor=self._base_tensor)
 
+        self.eps = get_tensor(eps, base_tensor=self._base_tensor)
         # rotation & position vectors
         pos = get_tensor(pos, base_tensor=self._base_tensor)
         if pos.size(0) == 2:
