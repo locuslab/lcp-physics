@@ -68,10 +68,10 @@ class FixedJoint:
         self.rot2 = self.body2.p[0] - self.body1.p[0]  # inverted sign?
 
     def J(self):
-        J1 = torch.cat([torch.cat([-self.pos1[Y], self.pos1[X]]).unsqueeze(1),
+        J1 = torch.cat([torch.cat([-self.pos1[Y:Y+1], self.pos1[X:X+1]]).unsqueeze(1),
                         torch.eye(DIM).type_as(self.pos)], dim=1)
         J1 = torch.cat([J1, J1.new_tensor([1, 0, 0]).unsqueeze(0)], dim=0)
-        J2 = torch.cat([torch.cat([self.pos2[Y], -self.pos2[X]]).unsqueeze(1),
+        J2 = torch.cat([torch.cat([self.pos2[Y:Y+1], -self.pos2[X:X+1]]).unsqueeze(1),
                         -torch.eye(DIM).type_as(self.pos)], dim=1)
         J2 = torch.cat([J2, J2.new_tensor([-1, 0, 0]).unsqueeze(0)], dim=0)
         return J1, J2
