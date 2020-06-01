@@ -51,7 +51,7 @@ class LCPFunction(Function):
 
         dps = dx
         dGs = (bger(dlam, zhats) + bger(self.lams, dx))
-        dFs = bger(dlam, self.lams)
+        dFs = -bger(dlam, self.lams)
         dhs = -dlam
         if neq > 0:
             dAs = bger(dnu, zhats) + bger(self.nus, dx)
