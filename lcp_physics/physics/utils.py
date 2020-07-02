@@ -13,7 +13,7 @@ class Defaults:
     DIM = 2
 
     # Contact detectopm parameter
-    EPSILON = 0.1
+    EPSILON = 30
 
     # Penetration tolerance parameter
     TOL = 1e-6

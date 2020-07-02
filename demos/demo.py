@@ -165,7 +165,7 @@ if __name__ == '__main__':
         screen.set_alpha(None)
         pygame.display.set_caption('2D Engine')
 
-    slide_demo(screen)
-    fric_demo(screen)
-    chain_demo(screen)
+    # slide_demo(screen)
+    # fric_demo(screen)
+    # chain_demo(screen)
     debug_demo(screen)

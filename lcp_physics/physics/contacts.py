@@ -44,7 +44,8 @@ class OdeContactHandler(ContactHandler):
             p2 = point - base_tensor.new_tensor(geom2.getPosition())
             world.contacts.append(((normal, p1[:DIM], p2[:DIM], penetration),
                                     geom1.body, geom2.body))
-            # world.contacts_debug = world.contacts  # XXX
+
+            world.contacts_debug = world.contacts  # XXX
 
 
 class DiffContactHandler(ContactHandler):
@@ -74,9 +75,16 @@ class DiffContactHandler(ContactHandler):
             if penetration.item() < -world.eps:
                 return
             normal = normal / dist
-            p1 = -normal * (b1.rad - penetration / 2)
-            p2 = normal * (b2.rad - penetration / 2)
-            pts = [(normal, p1, p2, penetration)]
+
+            # contact points on surface of object if not interpenetrating,
+            #  otherwise its the point  midway between two objects inside of them
+            p1 = -normal * b1.rad
+            p2 = normal * b2.rad
+            if penetration > 0:
+                p1 = p1 + normal * penetration / 2  # p1 = -normal * (b1.rad - penetration / 2)
+                p2 = p2 - normal * penetration / 2  # p2 = normal * (b2.rad - penetration / 2)
+
+            pts = [[normal, p1, p2, penetration]]
         elif is_circle_g1 or is_circle_g2:
             if is_circle_g2:
                 # set circle to b1
@@ -141,7 +149,7 @@ class DiffContactHandler(ContactHandler):
                 # flip back values for circle as g2
                 best_normal = -best_normal
                 best_pt1, best_pt2 = best_pt2, best_pt1
-            pts = [(best_normal, best_pt1, best_pt2, -best_dist)]
+            pts = [[best_normal, best_pt1, best_pt2, -best_dist]]
         else:
             # SAT for hull x hull contact
             # TODO Optimize for rectangle vs rectangle?
@@ -175,7 +183,7 @@ class DiffContactHandler(ContactHandler):
                     if dist.item() <= world.eps:
                         pt1 = v + normal * -dist
                         pt2 = pt1 + b2.pos - b1.pos
-                        pts.append((normal, pt2, pt1, -dist))
+                        pts.append([normal, pt2, pt1, -dist])
             else:
                 normal = -contact1[3]
                 half_edge_norm = contact1[5] / 2
@@ -198,11 +206,22 @@ class DiffContactHandler(ContactHandler):
                     if dist.item() <= world.eps:
                         pt1 = v + normal * -dist
                         pt2 = pt1 + b1.pos - b2.pos
-                        pts.append((-normal, pt1, pt2, -dist))
+                        pts.append([-normal, pt1, pt2, -dist])
 
         for p in pts:
-            world.contacts.append((p, geom1.body, geom2.body))
-        # world.contacts_debug = world.contacts  # XXX
+            world.contacts.append([p, geom1.body, geom2.body])
+
+        # smooth contact hack
+        for i, contact in enumerate(world.contacts):
+            # at 0 penetration (objects exact contact) we want p percent of contact normal.
+            # compute adjustment with inverse of sigmoid
+            p = torch.tensor(0.975)
+            delta = torch.log(p / (1 - p))
+
+            # contact[0] = (normal, pt1, pt2, penetration_dist)
+            contact[0][0] *= torch.sigmoid(contact[0][3] + delta)
+
+        world.contacts_debug = world.contacts  # XXX
 
     @staticmethod
     def get_support(points, direction):

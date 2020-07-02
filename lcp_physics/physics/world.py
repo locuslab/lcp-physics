@@ -20,7 +20,7 @@ class World:
                  contact_callback=Defaults.CONTACT, eps=Defaults.EPSILON,
                  tol=Defaults.TOL, fric_dirs=Defaults.FRIC_DIRS,
                  post_stab=Defaults.POST_STABILIZATION, strict_no_penetration=True):
-        # self.contacts_debug = None  # XXX
+        self.contacts_debug = None  # XXX
 
         # Load classes from string name defined in utils
         self.engine = get_instance(engines_module, engine)
@@ -172,7 +172,7 @@ class World:
     def Jc(self):
         Jc = self._M.new_zeros(len(self.contacts), self.vec_len * len(self.bodies))
         for i, contact in enumerate(self.contacts):
-            c = contact[0]  # c = (normal, contact_pt_1, contact_pt_2)
+            c = contact[0]  # c = (normal, contact_pt_1, contact_pt_2, penetration_dist)
             i1 = contact[1]
             i2 = contact[2]
             J1 = torch.cat([cross_2d(c[1], c[0]).reshape(1, 1),
@@ -283,17 +283,17 @@ def run_world(world, animation_dt=None, run_time=10, print_time=True,
 
                 # Visualize contact points and normal for debug
                 # (Uncomment contacts_debug line in contacts handler):
-                # if world.contacts_debug:
-                #     for c in world.contacts_debug:
-                #         (normal, p1, p2, penetration), b1, b2 = c
-                #         b1_pos = world.bodies[b1].pos
-                #         b2_pos = world.bodies[b2].pos
-                #         p1 = p1 + b1_pos
-                #         p2 = p2 + b2_pos
-                #         pygame.draw.circle(screen, (0, 255, 0), p1.data.numpy().astype(int), 5)
-                #         pygame.draw.circle(screen, (0, 0, 255), p2.data.numpy().astype(int), 5)
-                #         pygame.draw.line(screen, (0, 255, 0), p1.data.numpy().astype(int),
-                #                          (p1.data.numpy() + normal.data.numpy() * 100).astype(int), 3)
+                if world.contacts_debug:
+                    for c in world.contacts_debug:
+                        (normal, p1, p2, penetration), b1, b2 = c
+                        b1_pos = world.bodies[b1].pos
+                        b2_pos = world.bodies[b2].pos
+                        p1 = p1 + b1_pos
+                        p2 = p2 + b2_pos
+                        pygame.draw.circle(screen, (0, 0, 255), p1.data.numpy().astype(int), 5)
+                        pygame.draw.circle(screen, (0, 0, 255), p2.data.numpy().astype(int), 5)
+                        pygame.draw.line(screen, (0, 255, 0), p1.data.numpy().astype(int),
+                                         (p1.data.numpy() + normal.data.numpy() * 100).astype(int), 3)
 
                 if not recorder:
                     # Don't refresh screen if recording
