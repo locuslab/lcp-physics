@@ -219,7 +219,7 @@ class DiffContactHandler(ContactHandler):
             delta = torch.log(p / (1 - p))
 
             # contact[0] = (normal, pt1, pt2, penetration_dist)
-            contact[0][0] *= torch.sigmoid(contact[0][3] + delta)
+            contact[0][0] = contact[0][0] * torch.sigmoid(contact[0][3] + delta)
 
         world.contacts_debug = world.contacts  # XXX
 
