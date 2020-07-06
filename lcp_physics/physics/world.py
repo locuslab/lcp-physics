@@ -1,7 +1,7 @@
 import time
-from functools import lru_cache
+from argparse import Namespace
 
-import ode
+# import ode
 import torch
 
 from . import engines as engines_module
@@ -37,10 +37,10 @@ class World:
         self.vec_len = len(self.bodies[0].v)
 
         # XXX Using ODE for broadphase for now
-        self.space = ode.HashSpace()
-        for i, b in enumerate(bodies):
-            b.geom.body = i
-            self.space.add(b.geom)
+        # self.space = ode.HashSpace()
+        # for i, b in enumerate(bodies):
+        #     b.geom.body = i
+        #     self.space.add(b.geom)
 
         self.static_inverse = True
         self.num_constraints = 0
@@ -139,7 +139,19 @@ class World:
     def find_contacts(self):
         self.contacts = []
         # ODE contact detection
-        self.space.collide([self], self.contact_callback)
+        # self.space.collide([self], self.contact_callback)
+
+        for i, b1 in enumerate(self.bodies):
+            g1 = Namespace()
+            g1.no_contact = b1.no_contact
+            g1.body_ref = b1
+            g1.body = i
+            for j, b2 in enumerate(self.bodies[:i]):
+                g2 = Namespace()
+                g2.no_contact = b2.no_contact
+                g2.body_ref = b2
+                g2.body = j
+                self.contact_callback([self], g1, g2)
 
     def restitutions(self):
         restitutions = self._M.new_empty(len(self.contacts))
@@ -154,6 +166,7 @@ class World:
         return self._M
 
     def Je(self):
+
         Je = self._M.new_zeros(self.num_constraints,
                                self.vec_len * len(self.bodies))
         row = 0

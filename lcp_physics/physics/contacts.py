@@ -1,6 +1,6 @@
 import random
 
-import ode
+# import ode
 
 import torch
 
@@ -23,29 +23,30 @@ class ContactHandler:
 
 class OdeContactHandler(ContactHandler):
     def __call__(self, args, geom1, geom2):
-        if geom1 in geom2.no_contact:
-            return
-        world = args[0]
-        base_tensor = world.bodies[0].p
-
-        contacts = ode.collide(geom1, geom2)
-        for c in contacts:
-            point, normal, penetration, geom1, geom2 = c.getContactGeomParams()
-            # XXX Simple disambiguation of 3D repetition of contacts
-            if point[2] > 0:
-                continue
-            normal = base_tensor.new_tensor(normal[:DIM])
-            point = base_tensor.new_tensor(point)
-            penetration = base_tensor.new_tensor([penetration])
-            penetration -= 2 * world.eps
-            if penetration.item() < -2 * world.eps:
-                return
-            p1 = point - base_tensor.new_tensor(geom1.getPosition())
-            p2 = point - base_tensor.new_tensor(geom2.getPosition())
-            world.contacts.append(((normal, p1[:DIM], p2[:DIM], penetration),
-                                    geom1.body, geom2.body))
-
-            world.contacts_debug = world.contacts  # XXX
+        raise NotImplementedError
+        # if geom1 in geom2.no_contact:
+        #     return
+        # world = args[0]
+        # base_tensor = world.bodies[0].p
+        #
+        # contacts = ode.collide(geom1, geom2)
+        # for c in contacts:
+        #     point, normal, penetration, geom1, geom2 = c.getContactGeomParams()
+        #     # XXX Simple disambiguation of 3D repetition of contacts
+        #     if point[2] > 0:
+        #         continue
+        #     normal = base_tensor.new_tensor(normal[:DIM])
+        #     point = base_tensor.new_tensor(point)
+        #     penetration = base_tensor.new_tensor([penetration])
+        #     penetration -= 2 * world.eps
+        #     if penetration.item() < -2 * world.eps:
+        #         return
+        #     p1 = point - base_tensor.new_tensor(geom1.getPosition())
+        #     p2 = point - base_tensor.new_tensor(geom2.getPosition())
+        #     world.contacts.append(((normal, p1[:DIM], p2[:DIM], penetration),
+        #                             geom1.body, geom2.body))
+        #
+        #     world.contacts_debug = world.contacts  # XXX
 
 
 class DiffContactHandler(ContactHandler):
@@ -58,7 +59,7 @@ class DiffContactHandler(ContactHandler):
     def __call__(self, args, geom1, geom2):
         # self.debug_callback(args, geom1, geom2)
 
-        if geom1 in geom2.no_contact:
+        if geom1.body_ref in geom2.no_contact:
             return
         world = args[0]
 
